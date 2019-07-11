@@ -21,6 +21,8 @@ namespace MultiWorldServer
 
         private static void Main()
         {
+            MultiworldRandomizer.Randomize(5, new ServerSettings {Seed = 12414});
+
             Console.WriteLine("Enter IP and port in the form '127.0.0.1:5001'");
 
             string[] input = Console.ReadLine().Split(':');
