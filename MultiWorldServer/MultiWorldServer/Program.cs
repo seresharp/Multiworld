@@ -14,11 +14,16 @@ namespace MultiWorldServer
 {
     internal class Program
     {
+        private static ulong nextUID = 1;
+        private static ushort nextPID = 1;
+
         private static readonly Random Rnd = new Random();
+        private static readonly MWMessagePacker Packer = new MWMessagePacker(new BinaryMWMessageEncoder());
 
         private static readonly List<Client> Unidentified = new List<Client>();
 
-        private static readonly Dictionary<string, Client> Clients = new Dictionary<string, Client>();
+        private static readonly Dictionary<ulong, Client> Clients = new Dictionary<ulong, Client>();
+        private static readonly Dictionary<string, Session> Sessions = new Dictionary<string, Session>();
         private static TcpListener _server = new TcpListener(IPAddress.Parse("127.0.0.1"), 5001);
         private static readonly Stopwatch Watch = new Stopwatch();
 
@@ -52,17 +57,16 @@ namespace MultiWorldServer
                             }
                         }
 
-                        foreach (string key in Clients.Keys.ToArray())
+                        foreach (ulong uid in Clients.Keys.ToArray())
                         {
-                            Client client = Clients[key];
+                            Client client = Clients[uid];
 
                             if ((client.TcpClient != null && client.TcpClient.Connected) || !client.FullyConnected)
                             {
                                 continue;
                             }
 
-                            Console.WriteLine($"{client.Name} disconnected");
-                            client.ResetClient();
+                            Console.WriteLine($"{client.Session?.Name} disconnected");
                         }
 
                         // Send ping messages periodically
@@ -70,7 +74,7 @@ namespace MultiWorldServer
                         {
                             foreach (Client client in Unidentified.Concat(Clients.Values))
                             {
-                                SendMessage("PING", client);
+                                SendMessage(new MWPingMessage(), client);
                             }
 
                             Watch.Reset();
@@ -94,7 +98,7 @@ namespace MultiWorldServer
                             }
                             catch (Exception e)
                             {
-                                Console.WriteLine($"Failed to read data from {client.Name}:\n{e}");
+                                Console.WriteLine($"Failed to read data from {client.Session?.Name}:\n{e}");
                             }
                         }
                     }
@@ -107,24 +111,24 @@ namespace MultiWorldServer
             // ReSharper disable once FunctionNeverReturns
         }
 
-        private static bool SendMessage(string msg, Client client)
+        private static bool SendMessage(MWMessage message, Client client)
         {
             if (client?.TcpClient == null || !client.TcpClient.Connected)
             {
                 return false;
             }
 
-            byte[] bytes = Encoding.ASCII.GetBytes(msg);
-
             try
             {
+                byte[] bytes = Packer.Pack(message).Buffer;
+
                 NetworkStream stream = client.TcpClient.GetStream();
                 stream.BeginWrite(bytes, 0, bytes.Length, WriteToClient, stream);
                 return true;
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Failed to send message '{msg}' to '{client.Name}':\n{e}");
+                Console.WriteLine($"Failed to send message to '{client.Session?.Name}':\n{e}");
                 return false;
             }
         }
@@ -152,7 +156,7 @@ namespace MultiWorldServer
             }
         }
 
-        private static string GenerateUUID()
+        private static string GenerateToken()
         {
             byte[] bytes = new byte[16];
 
@@ -172,130 +176,146 @@ namespace MultiWorldServer
 
         private static void ReadFromClient(IAsyncResult res)
         {
-            (NetworkStream stream, byte[] buf, Client player) = ((NetworkStream, byte[], Client))res.AsyncState;
+            (NetworkStream stream, byte[] buf, Client sender) = ((NetworkStream, byte[], Client))res.AsyncState;
             stream.EndRead(res);
 
-            string message = Encoding.ASCII.GetString(buf);
-            if (string.IsNullOrEmpty(message))
+            MWMessage message;
+            try
             {
+                message = Packer.Unpack(new MWPackedMessage(buf));
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
                 return;
             }
 
-            string[] msgArgs = message.Split(' ');
-            if (msgArgs.Length == 0)
+            if (message == null)
             {
+                Console.Write($"Failed to unpack message: {BitConverter.ToString(buf)}");
                 return;
             }
 
-            switch (msgArgs[0])
+            switch (message.MessageType)
             {
-                case "PING":
-                    // Do nothing, sending back PONG is unnecessary due to TCP acknowledge
+                case MWMessageType.SharedCore:
                     break;
-                case "SAY" when msgArgs.Length > 1 && Clients.ContainsValue(player):
-                    for (int i = 1; i < msgArgs.Length; i++)
+                case MWMessageType.ConnectMessage:
+                    if (Unidentified.Contains(sender) && message is MWConnectMessage)
                     {
-                        Console.Write(msgArgs[i] + " ");
-                    }
-
-                    Console.WriteLine();
-                    break;
-                case "GIVE" when msgArgs.Length == 3 && Clients.ContainsValue(player):
-                    if (!Clients.TryGetValue(msgArgs[1], out Client itemClient))
-                    {
-                        break;
-                    }
-
-                    if (SendMessage($"GET {msgArgs[2]}", itemClient))
-                    {
-                        Console.WriteLine($"{itemClient.Name} received '{msgArgs[2]}' from {player.Name}");
-                    }
-
-                    break;
-                case "NAME" when msgArgs.Length == 2:
-                    if (Unidentified.Concat(Clients.Values).Any(otherClient => otherClient.Name?.ToLower() == msgArgs[1].ToLower()))
-                    {
-                        SendMessage($"Name {msgArgs[1]} is already in use", player);
-                        break;
-                    }
-
-                    if (!Unidentified.Contains(player))
-                    {
-                        Console.WriteLine($"{player.Name} changed name to {msgArgs[1]}");
-                        player.Name = msgArgs[1];
-                    }
-                    else
-                    {
-                        player.Name = msgArgs[1];
-
-                        if (player.UUID != null)
+                        if (message.SenderUid == 0)
                         {
-                            Clients.Add(player.UUID, player);
-                            Unidentified.Remove(player);
-                            player.FullyConnected = true;
-
-                            Console.WriteLine($"{player.Name} connected");
+                            sender.UID = nextUID++;
+                            SendMessage(new MWConnectMessage {SenderUid = sender.UID}, sender);
+                            Clients.Add(sender.UID, sender);
+                            Unidentified.Remove(sender);
+                        }
+                        else
+                        {
+                            Unidentified.Remove(sender);
+                            sender.TcpClient.Close();
                         }
                     }
 
                     break;
-                case "UUID" when msgArgs.Length == 1 && Unidentified.Contains(player):
-                    string uuid = GenerateUUID();
-                    while (Clients.TryGetValue(uuid, out _))
+                case MWMessageType.ReconnectMessage:
+                    break;
+                case MWMessageType.DisconnectMessage:
+                    if (Clients.ContainsValue(sender) && message is MWDisconnectMessage)
                     {
-                        uuid = GenerateUUID();
-                    }
-
-                    SendMessage($"UUID {uuid}", player);
-                    player.UUID = uuid;
-                    if (player.Name != null)
-                    {
-                        Clients.Add(uuid, player);
-                        Unidentified.Remove(player);
-                        player.FullyConnected = true;
-
-                        Console.WriteLine($"{player.Name} connected");
+                        sender.TcpClient.Close();
+                        Clients.Remove(sender.UID);
                     }
 
                     break;
-                case "UUID" when msgArgs.Length == 2 && Unidentified.Contains(player):
-                    if (!Clients.TryGetValue(msgArgs[1], out Client client))
+                case MWMessageType.JoinMessage:
+                    if (Clients.ContainsKey(sender.UID) && message is MWJoinMessage joinMsg)
                     {
-                        SendMessage($"No client found with UUID '{msgArgs[1]}'", player);
-                        break;
+                        if (string.IsNullOrEmpty(joinMsg.Token))
+                        {
+                            string token = GenerateToken();
+                            while (Sessions.ContainsKey(token))
+                            {
+                                token = GenerateToken();
+                            }
+
+                            sender.Session = new Session
+                            {
+                                Name = joinMsg.DisplayName,
+                                Token = token,
+                                PID = nextPID++
+                            };
+
+                            Sessions.Add(token, sender.Session);
+                            sender.FullyConnected = true;
+
+                            Console.WriteLine($"{joinMsg.DisplayName} has token {token}");
+                            SendMessage(new MWJoinConfirmMessage {Token = token, DisplayName = sender.Session.Name}, sender);
+                        }
+                        else
+                        {
+                            if (!Sessions.TryGetValue(joinMsg.Token, out Session session))
+                            {
+                                SendMessage(new MWDisconnectMessage(), sender);
+                                sender.TcpClient.Close();
+                                break;
+                            }
+
+                            sender.Session = session;
+                            Unidentified.Remove(sender);
+                            sender.FullyConnected = true;
+                        }
                     }
 
-                    if (client.TcpClient.Connected)
-                    {
-                        SendMessage("You are already connected to the server", player);
-                        break;
-                    }
-
-                    client.TcpClient = player.TcpClient;
-                    Unidentified.Remove(player);
-                    client.FullyConnected = true;
-                    Console.WriteLine($"{client.Name} reconnected");
-
+                    break;
+                case MWMessageType.JoinConfirmMessage:
+                    break;
+                case MWMessageType.LeaveMessage:
+                    break;
+                case MWMessageType.ItemConfigurationMessage:
+                    break;
+                case MWMessageType.ItemConfigurationConfirmMessage:
+                    break;
+                case MWMessageType.ItemReceiveMessage:
+                    break;
+                case MWMessageType.ItemReceiveConfirmMessage:
+                    break;
+                case MWMessageType.ItemSendMessage:
+                    break;
+                case MWMessageType.ItemSendConfirmMessage:
+                    break;
+                case MWMessageType.NotifyMessage when message is MWNotifyMessage notify:
+                    Console.WriteLine($"[{notify.From}]: {notify.Message}");
+                    break;
+                case MWMessageType.PingMessage:
+                    break;
+                case MWMessageType.InvalidMessage:
+                    Console.WriteLine($"Invalid message from {GetClient(message.SenderUid)?.Session?.Name}");
                     break;
                 default:
-                    Console.WriteLine($"Improper command from {player.Name}: '{message}'");
-                    break;
+                    throw new ArgumentOutOfRangeException();
             }
+        }
+
+        private static Client GetClient(ulong uuid)
+        {
+            return Clients.TryGetValue(uuid, out Client client) ? client : null;
         }
 
         private class Client
         {
-            public string UUID;
-            public string Name;
+            public ulong UID;
             public TcpClient TcpClient;
             public bool FullyConnected;
 
-            public void ResetClient()
-            {
-                TcpClient?.Close();
-                TcpClient = new TcpClient();
-                FullyConnected = false;
-            }
+            public Session Session;
+        }
+
+        public class Session
+        {
+            public string Name;
+            public string Token;
+            public ushort PID;
         }
     }
 }

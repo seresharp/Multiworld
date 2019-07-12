@@ -1,18 +1,26 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
+using MultiWorldProtocol.Binary;
+using MultiWorldProtocol.Messaging;
+using MultiWorldProtocol.Messaging.Definitions.Messages;
 
 namespace MultiWorldClient
 {
     internal class Program
     {
+        private static readonly MWMessagePacker Packer = new MWMessagePacker(new BinaryMWMessageEncoder());
+
         private static readonly object InputLock = new object();
         private static string _input;
 
         private static TcpClient _client;
         private static readonly Stopwatch Watch = new Stopwatch();
+
+        private static ulong UID;
+        private static string token;
+        private static string name = "Sean";
 
         private static void Main()
         {
@@ -36,6 +44,8 @@ namespace MultiWorldClient
 
                         _client.Connect(ip, port.Value);
                         Console.WriteLine("Success!");
+
+                        SendMessage(new MWConnectMessage {SenderUid = 0});
 
                         Watch.Reset();
                         Watch.Start();
@@ -85,13 +95,13 @@ namespace MultiWorldClient
 
                 if (!string.IsNullOrEmpty(msg))
                 {
-                    SendMessage(msg);
+                    SendMessage(new MWNotifyMessage {From = name, Message = msg, SenderUid = UID, To = "All"});
                 }
 
                 // Send ping messages periodically
                 if (Watch.Elapsed.TotalSeconds >= 10)
                 {
-                    SendMessage("PING");
+                    SendMessage(new MWPingMessage());
 
                     Watch.Reset();
                     Watch.Start();
@@ -122,12 +132,11 @@ namespace MultiWorldClient
             // ReSharper disable once FunctionNeverReturns
         }
 
-        private static void SendMessage(string msg)
+        private static void SendMessage(MWMessage msg)
         {
-            byte[] bytes = Encoding.ASCII.GetBytes(msg);
-
             try
             {
+                byte[] bytes = Packer.Pack(msg).Buffer;
                 NetworkStream stream = _client.GetStream();
                 stream.BeginWrite(bytes, 0, bytes.Length, WriteToServer, stream);
             }
@@ -148,10 +157,56 @@ namespace MultiWorldClient
             (NetworkStream stream, byte[] buf) = ((NetworkStream, byte[]))res.AsyncState;
             stream.EndRead(res);
 
-            string message = Encoding.ASCII.GetString(buf);
-            if (message == "PING")
+            MWMessage message;
+            try
             {
+                message = Packer.Unpack(new MWPackedMessage(buf));
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
                 return;
+            }
+
+            switch (message.MessageType)
+            {
+                case MWMessageType.InvalidMessage:
+                    break;
+                case MWMessageType.SharedCore:
+                    break;
+                case MWMessageType.ConnectMessage:
+                    UID = message.SenderUid;
+                    SendMessage(new MWJoinMessage {DisplayName = name, SenderUid = UID, Token = ""});
+                    break;
+                case MWMessageType.ReconnectMessage:
+                    break;
+                case MWMessageType.DisconnectMessage:
+                    break;
+                case MWMessageType.JoinMessage:
+                    break;
+                case MWMessageType.JoinConfirmMessage:
+                    Console.WriteLine(((MWJoinConfirmMessage)message).Token);
+                    break;
+                case MWMessageType.LeaveMessage:
+                    break;
+                case MWMessageType.ItemConfigurationMessage:
+                    break;
+                case MWMessageType.ItemConfigurationConfirmMessage:
+                    break;
+                case MWMessageType.ItemReceiveMessage:
+                    break;
+                case MWMessageType.ItemReceiveConfirmMessage:
+                    break;
+                case MWMessageType.ItemSendMessage:
+                    break;
+                case MWMessageType.ItemSendConfirmMessage:
+                    break;
+                case MWMessageType.NotifyMessage:
+                    break;
+                case MWMessageType.PingMessage:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
 
             Console.WriteLine($"Server: {message}");
