@@ -1,18 +1,34 @@
 ﻿using System;
 using System.IO;
 
-public class MWPackedMessage
+public struct MWPackedMessage
 {
-    ulong length;
-    ulong msgId;
-    MWMessageType msgType;
-    byte buffer;
+    public uint Length;
+    public byte[] Buffer;
 
-    public MWPackedMessage(BinaryReader stream)
+    /// <summary>
+    /// Create with length and buffer. Does not perform sanity check on length and buffer
+    /// </summary>
+    /// <param name="length"></param>
+    /// <param name="buffer"></param>
+    public MWPackedMessage(uint length, byte[] buffer)
     {
-        ulong length = stream.ReadUInt64();
-        ulong msgId = stream.ReadUInt64();
-        uint msgType = stream.ReadUInt32();
+        Length = length;
+        Buffer = buffer;
+    }
 
+    /// <summary>
+    /// Create from buffer. Will parse the length out of the buffer and sanity check
+    /// </summary>
+    /// <param name="buffer"></param>
+    public MWPackedMessage(byte[] buffer)
+    {
+        Buffer = buffer;
+        Length = BitConverter.ToUInt32(buffer, 0);
+
+        if(Buffer.Length != Length)
+        {
+            throw new InvalidDataException("Buffer Length and length in data are mismatched");
+        }
     }
 }

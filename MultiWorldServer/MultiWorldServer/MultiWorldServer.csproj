@@ -56,5 +56,11 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\MultiWorldProtocol\MultiWorldProtocol.csproj">
+      <Project>{a2167653-9467-43ed-b29f-80851b5219f3}</Project>
+      <Name>MultiWorldProtocol</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

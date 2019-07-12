@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 
-public class MWMessageDefinition<T> where T:MWMessage
+public class MWMessageDefinition<T> : IMWMessageDefinition where T : MWMessage
 {
-    List<IMWMessageProperty> Properties = new List<IMWMessageProperty>();
+    public List<IMWMessageProperty> Properties { private set; get; }
+    public MWMessageType MessageType { get; private set; }
 
-    public MWMessageDefinition()
-	{
+    public MWMessageDefinition(MWMessageType type)
+    {
+        Properties = new List<IMWMessageProperty>();
+        MessageType = type;
         Properties.Add(new MWMessageProperty<MWMessageType, T>("MessageType"));
         Properties.Add(new MWMessageProperty<ulong, T>("SenderUid"));
         Properties.Add(new MWMessageProperty<ulong, T>("MessageId"));
-	}
+    }
 }
