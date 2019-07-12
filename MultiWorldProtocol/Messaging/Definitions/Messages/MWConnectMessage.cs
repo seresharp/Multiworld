@@ -9,6 +9,7 @@ namespace MultiWorldProtocol.Messaging.Definitions.Messages
     {
         public MWConnectMessage()
         {
+            MessageType = MWMessageType.ConnectMessage;
         }
     }
 

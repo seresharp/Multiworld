@@ -7,7 +7,8 @@ public class MWDisconnectMessage : MWMessage
 {
 	public MWDisconnectMessage()
 	{
-	}
+        MessageType = MWMessageType.DisconnectMessage;
+    }
 }
 
 public class MWDisconnectMessageDefinition : MWMessageDefinition<MWDisconnectMessage>

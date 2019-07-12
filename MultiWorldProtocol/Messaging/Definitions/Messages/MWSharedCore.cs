@@ -5,11 +5,16 @@ using System.Text;
 
 namespace MultiWorldProtocol.Messaging.Definitions
 {
-    class MWSharedCore : MWMessage
+    [MWMessageType(MWMessageType.SharedCore)]
+    public class MWSharedCore : MWMessage
     {
+        public MWSharedCore()
+        {
+            MessageType = MWMessageType.SharedCore;
+        }
     }
 
-    class MWSharedCoreDefinition : MWMessageDefinition<MWSharedCore>
+    public class MWSharedCoreDefinition : MWMessageDefinition<MWSharedCore>
     {
         public MWSharedCoreDefinition() : base(MWMessageType.SharedCore) { }
     }

@@ -7,8 +7,10 @@ namespace MultiWorldServer
 {
     public static class MultiworldRandomizer
     {
-        public static void Randomize(int playerCount, ServerSettings settings)
+        public static void Randomize(ServerSettings settings)
         {
+            int playerCount = settings.Players;
+
             if (playerCount < 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(playerCount), playerCount.ToString());

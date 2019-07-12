@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using MultiWorldProtocol.Binary;
 using MultiWorldProtocol.Messaging;
+using MultiWorldProtocol.Messaging.Definitions.Messages;
 
 namespace MultiWorldServer
 {
@@ -23,8 +24,6 @@ namespace MultiWorldServer
 
         private static void Main()
         {
-            new MWMessagePacker(new BinaryMWMessageEncoder());
-
             Console.WriteLine("Enter IP and port in the form '127.0.0.1:5001'");
 
             string[] input = Console.ReadLine().Split(':');

@@ -29,7 +29,7 @@ namespace MultiWorldProtocol.Messaging
             foreach(Type t in types)
             {
                 //If it implements the message definition interface
-                if(typeof(IMWMessageDefinition).IsAssignableFrom(t) && !t.IsInterface)
+                if(typeof(IMWMessageDefinition).IsAssignableFrom(t) && !t.IsInterface && !t.ContainsGenericParameters)
                 {
                     //Message Definitions need to implement empty Constructors
                     var constructor = t.GetConstructor(new Type[] { });
@@ -43,20 +43,30 @@ namespace MultiWorldProtocol.Messaging
                     definitionLookup.Add(def.MessageType, def);
                 }
                 //If it inherited from MWMessage we want the constructor
-                else if(typeof(MWMessage).IsAssignableFrom(t) && !t.IsGenericType)
+                else if(typeof(MWMessage).IsAssignableFrom(t) && !t.IsInterface && !t.ContainsGenericParameters)
                 {
+                    if (t == typeof(MWMessage))
+                    {
+                        continue;
+                    }
+
                     var constructor = t.GetConstructor(new Type[] { });
                     var attributes = t.GetCustomAttributes(false);
                     MWMessageType type = MWMessageType.InvalidMessage;
                     for(int i=0; i<attributes.Length; i++)
                     {
-                        var attribute = attributes[i] as MWMessageTypeAttribute;
-                        if (attribute != null)
+                        if (attributes[i] is MWMessageTypeAttribute attribute)
                         {
                             type = attribute.Type;
                             break;
                         }
                     }
+
+                    if (type == MWMessageType.InvalidMessage)
+                    {
+                        throw new InvalidDataException($"Message type {t.Name} is invalid");
+                    }
+
                     MWMessageType messageType = type;
                     messageConstructors.Add(messageType, constructor);
                 }
@@ -91,7 +101,7 @@ namespace MultiWorldProtocol.Messaging
 
             //Create and copy to dedicated buffer
             var buffer = new byte[length];
-            backingStream.GetBuffer().CopyTo(buffer, 0);
+            Array.Copy(backingStream.GetBuffer(), buffer, buffer.Length);
 
             return new MWPackedMessage(length, buffer);
         }
@@ -113,7 +123,7 @@ namespace MultiWorldProtocol.Messaging
                         encoder.Decode(reader, property, _dummy);
                     }
                     //Seek back to 
-                    bufferStream.Seek(4, SeekOrigin.Current);
+                    bufferStream.Seek(4, SeekOrigin.Begin);
                     return Unpack(reader, _dummy.MessageType);
                 }
             }

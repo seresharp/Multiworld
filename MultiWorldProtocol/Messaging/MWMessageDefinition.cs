@@ -14,9 +14,9 @@ namespace MultiWorldProtocol.Messaging
         {
             Properties = new List<IMWMessageProperty>();
             MessageType = type;
-            Properties.Add(new MWMessageProperty<MWMessageType, T>("MessageType"));
-            Properties.Add(new MWMessageProperty<ulong, T>("SenderUid"));
-            Properties.Add(new MWMessageProperty<ulong, T>("MessageId"));
+            Properties.Add(new MWMessageProperty<MWMessageType, T>(nameof(MWMessage.MessageType)));
+            Properties.Add(new MWMessageProperty<ulong, T>(nameof(MWMessage.SenderUid)));
+            Properties.Add(new MWMessageProperty<ulong, T>(nameof(MWMessage.MessageId)));
         }
     }
 }
