@@ -6,6 +6,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using MultiWorldProtocol.Binary;
+using MultiWorldProtocol.Messaging;
 
 namespace MultiWorldServer
 {
@@ -21,7 +23,7 @@ namespace MultiWorldServer
 
         private static void Main()
         {
-            MultiworldRandomizer.Randomize(5, new ServerSettings {Seed = 12414});
+            new MWMessagePacker(new BinaryMWMessageEncoder());
 
             Console.WriteLine("Enter IP and port in the form '127.0.0.1:5001'");
 

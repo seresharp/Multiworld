@@ -1,8 +1,11 @@
 ﻿using System;
 
-public interface IMWMessageProperty
+namespace MultiWorldProtocol.Messaging.Definitions
 {
-    Type Type { get;}
-    void SetValue(object target, object val);
-    object GetValue(object target);
+    public interface IMWMessageProperty
+    {
+        Type Type { get;}
+        void SetValue(object target, object val);
+        object GetValue(object target);
+    }
 }

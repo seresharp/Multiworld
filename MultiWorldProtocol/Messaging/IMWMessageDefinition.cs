@@ -1,8 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using MultiWorldProtocol.Messaging.Definitions;
 
-public interface IMWMessageDefinition
+namespace MultiWorldProtocol.Messaging
 {
-    MWMessageType MessageType { get; }
-    List<IMWMessageProperty> Properties { get; }
+    public interface IMWMessageDefinition
+    {
+        MWMessageType MessageType { get; }
+        List<IMWMessageProperty> Properties { get; }
+    }
 }

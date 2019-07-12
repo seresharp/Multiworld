@@ -1,8 +1,11 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
+using MultiWorldProtocol.Messaging.Definitions;
 
-public interface IMWMessageEncoder
+namespace MultiWorldProtocol.Messaging
 {
-    void Encode(BinaryWriter dataStream, IMWMessageProperty definition, MWMessage message);
-    void Decode(BinaryReader dataStream, IMWMessageProperty definition, MWMessage message);
+    public interface IMWMessageEncoder
+    {
+        void Encode(BinaryWriter dataStream, IMWMessageProperty definition, MWMessage message);
+        void Decode(BinaryReader dataStream, IMWMessageProperty definition, MWMessage message);
+    }
 }

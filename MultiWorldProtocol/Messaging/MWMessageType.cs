@@ -1,20 +1,21 @@
-﻿using System;
-
-public enum MWMessageType
+﻿namespace MultiWorldProtocol.Messaging
 {
-    InvalidMessage=0,
-    SharedCore=1,
-    ConnectMessage,
-    ReconnectMessage,
-    DisconnectMessage,
-    JoinMessage,
-    JoinConfirmMessage,
-    LeaveMessage,
-    ItemConfigurationMessage,
-    ItemConfigurationConfirmMessage,
-    ItemReceiveMessage,
-    ItemReceiveConfirmMessage,
-    ItemSendMessage,
-    ItemSendConfirmMessage,
-    ItemNotifyMessage,
+    public enum MWMessageType
+    {
+        InvalidMessage=0,
+        SharedCore=1,
+        ConnectMessage,
+        ReconnectMessage,
+        DisconnectMessage,
+        JoinMessage,
+        JoinConfirmMessage,
+        LeaveMessage,
+        ItemConfigurationMessage,
+        ItemConfigurationConfirmMessage,
+        ItemReceiveMessage,
+        ItemReceiveConfirmMessage,
+        ItemSendMessage,
+        ItemSendConfirmMessage,
+        ItemNotifyMessage,
+    }
 }

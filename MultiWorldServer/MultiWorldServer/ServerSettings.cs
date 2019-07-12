@@ -7,6 +7,20 @@ namespace MultiWorldServer
 {
     public struct ServerSettings
     {
+        public ServerSettings(bool a)
+        {
+            ShadeSkips = true;
+            AcidSkips = true;
+            SpikeTunnels = true;
+            MiscSkips = true;
+            FireballSkips = true;
+            MagSkips = true;
+
+            NoClaw = false;
+            Players = 5;
+            Seed = new Random().Next();
+        }
+
         public int Seed;
         public int Players;
         public bool ShadeSkips;

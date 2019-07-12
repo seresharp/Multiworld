@@ -1,16 +1,21 @@
 ﻿using System;
+using MultiWorldProtocol.Messaging;
+using MultiWorldProtocol.Messaging.Definitions;
 
-[MWMessageType(MWMessageType.ConnectMessage)]
-public class MWConnectMessage : MWMessage
+namespace MultiWorldProtocol.Messaging.Definitions.Messages
 {
-	public MWConnectMessage()
-	{
-	}
-}
-
-public class MWConnectMessageDefinition : MWMessageDefinition<MWConnectMessage>
-{
-    public MWConnectMessageDefinition() : base(MWMessageType.ConnectMessage)
+    [MWMessageType(MWMessageType.ConnectMessage)]
+    public class MWConnectMessage : MWMessage
     {
+        public MWConnectMessage()
+        {
+        }
+    }
+
+    public class MWConnectMessageDefinition : MWMessageDefinition<MWConnectMessage>
+    {
+        public MWConnectMessageDefinition() : base(MWMessageType.ConnectMessage)
+        {
+        }
     }
 }

@@ -1,15 +1,16 @@
-﻿using System;
-
-public class MWMessage
+﻿namespace MultiWorldProtocol.Messaging
 {
-    long senderUid;
-    long messageId;
-    MWMessageType messageType;
-	public MWMessage()
-	{
-	}
+    public class MWMessage
+    {
+        ulong senderUid;
+        ulong messageId;
+        MWMessageType messageType;
+        public MWMessage()
+        {
+        }
 
-    public long SenderUid { get => senderUid; set => senderUid = value; }
-    public long MessageId { get => messageId; set => messageId = value; }
-    public MWMessageType MessageType { get => messageType; set => messageType = value; }
+        public ulong SenderUid { get => senderUid; set => senderUid = value; }
+        public ulong MessageId { get => messageId; set => messageId = value; }
+        public MWMessageType MessageType { get => messageType; set => messageType = value; }
+    }
 }
