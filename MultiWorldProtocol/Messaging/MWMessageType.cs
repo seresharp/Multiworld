@@ -16,6 +16,7 @@
         ItemReceiveConfirmMessage,
         ItemSendMessage,
         ItemSendConfirmMessage,
-        ItemNotifyMessage,
+        NotifyMessage,
+        PingMessage
     }
 }
