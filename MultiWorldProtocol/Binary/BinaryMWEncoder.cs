@@ -8,7 +8,7 @@ public class BinaryMWMessageEncoder : IMWMessageEncoder
     {
         if (property.Type == typeof(MWMessageType))
         {
-            dataStream.Write((int)(MWMessageType)property.GetValue(message));
+            dataStream.Write((Int32)(MWMessageType)property.GetValue(message));
             return;
         }
 
