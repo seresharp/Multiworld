@@ -7,7 +7,6 @@ namespace MultiWorldProtocol.Binary
 {
     public class BinaryMWMessageEncoder : IMWMessageEncoder
     {
-
         public void Encode(BinaryWriter dataStream, IMWMessageProperty property, MWMessage message)
         {
             if (property.Type == typeof(MWMessageType))
