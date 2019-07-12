@@ -19,7 +19,7 @@ namespace MultiWorldProtocol.Messaging
         MemoryStream backingStream;
         BinaryWriter streamWriter;
 
-        MWMessage _dummy; //Used to save allocations when unpacking the first part of a message to work out the type
+        MWSharedCore _dummy; //Used to save allocations when unpacking the first part of a message to work out the type
 
         static MWMessagePacker()
         {
@@ -43,7 +43,7 @@ namespace MultiWorldProtocol.Messaging
                     definitionLookup.Add(def.MessageType, def);
                 }
                 //If it inherited from MWMessage we want the constructor
-                else if(typeof(MWMessage).IsAssignableFrom(t))
+                else if(typeof(MWMessage).IsAssignableFrom(t) && !t.IsGenericType)
                 {
                     var constructor = t.GetConstructor(new Type[] { });
                     var attributes = t.GetCustomAttributes(false);
@@ -68,7 +68,7 @@ namespace MultiWorldProtocol.Messaging
             this.encoder = encoder;
             backingStream = new MemoryStream(0x4000); //Should be large enough to accomodate any message we might send, if not can easily be changed
             streamWriter = new BinaryWriter(backingStream);
-            _dummy = new MWMessage();
+            _dummy = new MWSharedCore();
         }
 
         public MWPackedMessage Pack(MWMessage message)
