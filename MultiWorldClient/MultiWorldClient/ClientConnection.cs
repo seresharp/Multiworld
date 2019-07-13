@@ -24,7 +24,7 @@ namespace MultiWorldClient
         {
             State = new ConnectionState();
             State.UserName = Username;
-            PingTimer = new Timer(DoPing, State, 1, 1);
+            PingTimer = new Timer(DoPing, State, 1000, 1000);
 
             _client = new TcpClient
             {
