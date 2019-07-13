@@ -8,6 +8,7 @@ using System.Diagnostics;
 using MultiWorldProtocol.Messaging.Definitions.Messages;
 using System.Net.Sockets;
 using System.Threading;
+using Modding;
 
 namespace MultiWorldMod
 {
@@ -20,11 +21,20 @@ namespace MultiWorldMod
         private List<MWItemSendMessage> ItemSendQueue = new List<MWItemSendMessage>();
         private Thread ReadThread;
 
+        public delegate void ItemReceiveEvent(string from, string itemName);
+
+        public delegate void MessageReceiveEvent(string from, string message);
+
+        public event ItemReceiveEvent ItemReceived;
+        public event MessageReceiveEvent MessageReceived;
+
+        private List<MWMessage> messageEventQueue = new List<MWMessage>();
+
         public ClientConnection(string host, int port, string Username)
         {
             State = new ConnectionState();
             State.UserName = Username;
-            PingTimer = new Timer(DoPing, State, 1, 1);
+            PingTimer = new Timer(DoPing, State, 1000, 1000);
 
             _client = new TcpClient
             {
@@ -33,9 +43,44 @@ namespace MultiWorldMod
             };
 
             _client.Connect(host, port);
+            SendMessage(new MWConnectMessage { });
             MultiWorldMod.Instance.Log("Success!");
             ReadThread = new Thread(new ThreadStart(ReadWorker));
             ReadThread.Start();
+
+            ModHooks.Instance.HeroUpdateHook += SynchronizeEvents;
+        }
+
+        private void SynchronizeEvents()
+        {
+            MWMessage message = null;
+
+            lock (messageEventQueue)
+            {
+                if (messageEventQueue.Count > 0)
+                {
+                    message = messageEventQueue[0];
+                    messageEventQueue.RemoveAt(0);
+                }
+            }
+
+            if (message == null)
+            {
+                return;
+            }
+
+            switch (message)
+            {
+                case MWNotifyMessage notify:
+                    MessageReceived?.Invoke(notify.From, notify.Message);
+                    break;
+                case MWItemReceiveMessage item:
+                    ItemReceived?.Invoke(item.From, item.Item);
+                    break;
+                default:
+                    MultiWorldMod.Instance.Log("Unknown type in message queue: " + message.MessageType);
+                    break;
+            }
         }
 
         private void DoPing(object state)
@@ -74,6 +119,7 @@ namespace MultiWorldMod
             while(true)
             {
                 var message = new MWPackedMessage(stream);
+                ReadFromServer(message);
             }
         }
 
@@ -140,8 +186,6 @@ namespace MultiWorldMod
                 default:
                     throw new InvalidOperationException("Received Invalid Message Type");
             }
-
-            MultiWorldMod.Instance.Log($"Server: {message}");
         }
 
         private void ResendItemQueue()
@@ -194,11 +238,19 @@ namespace MultiWorldMod
 
         private void HandleNotify(MWNotifyMessage message)
         {
-            //Do whatever we want to do with notifies here
+            lock (messageEventQueue)
+            {
+                messageEventQueue.Add(message);
+            }
         }
 
         private void HandleItemReceive(MWItemReceiveMessage message)
         {
+            lock (messageEventQueue)
+            {
+                messageEventQueue.Add(message);
+            }
+
             //Do whatever we want to do when we get an item here, then confirm
             SendMessage(new MWItemReceiveConfirmMessage { Item = message.Item, From = message.From });
         }

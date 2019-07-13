@@ -42,6 +42,8 @@ namespace MultiWorldServer
 
             Watch.Start();
 
+            new Thread(DebugItem).Start();
+
             while (true)
             {
                 lock (Unidentified)
@@ -115,6 +117,7 @@ namespace MultiWorldServer
         {
             if (client?.TcpClient == null || !client.TcpClient.Connected)
             {
+                Console.WriteLine("Failed to send message");
                 return false;
             }
 
@@ -124,6 +127,8 @@ namespace MultiWorldServer
 
                 NetworkStream stream = client.TcpClient.GetStream();
                 stream.BeginWrite(bytes, 0, bytes.Length, WriteToClient, stream);
+
+                Console.WriteLine("Message sent");
                 return true;
             }
             catch (Exception e)
@@ -300,6 +305,19 @@ namespace MultiWorldServer
         private static Client GetClient(ulong uuid)
         {
             return Clients.TryGetValue(uuid, out Client client) ? client : null;
+        }
+
+        private static void DebugItem()
+        {
+            while (true)
+            {
+                string message = Console.ReadLine();
+
+                foreach (Client c in Clients.Values)
+                {
+                    SendMessage(new MWItemReceiveMessage {From = "Dan", Item = message}, c);
+                }
+            }
         }
 
         private class Client
