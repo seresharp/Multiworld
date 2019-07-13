@@ -47,7 +47,7 @@ namespace MultiWorldProtocol.Binary
                     dataStream.Write(str);
                     break;
                 default:
-                    throw new InvalidDataException($"Unhandled type in {nameof(Encode)}: {val?.GetType().Name}");
+                    throw new InvalidOperationException($"Unhandled type in {nameof(Encode)}: {val?.GetType().Name}");
             }
         }
 
@@ -89,7 +89,7 @@ namespace MultiWorldProtocol.Binary
                     val = dataStream.ReadString();
                     break;
                 default:
-                    throw new InvalidDataException($"Unhandled type in {nameof(Decode)}: {property.Type.Name}");
+                    throw new InvalidOperationException($"Unhandled type in {nameof(Decode)}: {property.Type.Name}");
             }
             property.SetValue(message, val);
         }
