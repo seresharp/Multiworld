@@ -32,7 +32,7 @@ namespace MultiWorldProtocol.Messaging
 
             if(Buffer.Length != Length)
             {
-                throw new InvalidDataException("Buffer Length and length in data are mismatched");
+                throw new InvalidOperationException("Buffer Length and length in data are mismatched");
             }
         }
 

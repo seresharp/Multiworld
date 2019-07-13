@@ -64,7 +64,7 @@ namespace MultiWorldProtocol.Messaging
 
                     if (type == MWMessageType.InvalidMessage)
                     {
-                        throw new InvalidDataException($"Message type {t.Name} is invalid");
+                        throw new InvalidOperationException($"Message type {t.Name} is invalid");
                     }
 
                     MWMessageType messageType = type;
