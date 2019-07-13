@@ -8,7 +8,7 @@ namespace MultiWorldProtocol.Messaging.Definitions.Messages
     public class MWItemSendMessage : MWMessage
     {
         public string Item { get; set; }
-        public string To { get; set; }
+        public uint To { get; set; }
 
         public MWItemSendMessage()
         {
@@ -21,7 +21,7 @@ namespace MultiWorldProtocol.Messaging.Definitions.Messages
         public MWItemSendDefinition() : base(MWMessageType.ItemSendMessage)
         {
             Properties.Add(new MWMessageProperty<string, MWItemSendMessage>(nameof(MWItemSendMessage.Item)));
-            Properties.Add(new MWMessageProperty<string, MWItemSendMessage>(nameof(MWItemSendMessage.To)));
+            Properties.Add(new MWMessageProperty<uint, MWItemSendMessage>(nameof(MWItemSendMessage.To)));
         }
     }
 }

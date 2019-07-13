@@ -9,6 +9,7 @@ namespace MultiWorldProtocol.Messaging.Definitions.Messages
     {
         public string DisplayName { get; set; }
         public string Token { get; set; }
+        public UInt16 PlayerId { get; set; }
 
         public MWJoinConfirmMessage()
         {
@@ -22,6 +23,7 @@ namespace MultiWorldProtocol.Messaging.Definitions.Messages
         {
             Properties.Add(new MWMessageProperty<string, MWJoinConfirmMessage>(nameof(MWJoinConfirmMessage.DisplayName)));
             Properties.Add(new MWMessageProperty<string, MWJoinConfirmMessage>(nameof(MWJoinConfirmMessage.Token)));
+            Properties.Add(new MWMessageProperty<UInt16, MWJoinConfirmMessage>(nameof(MWJoinConfirmMessage.PlayerId)));
         }
     }
 }

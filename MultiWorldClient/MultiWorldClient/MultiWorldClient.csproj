@@ -32,9 +32,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="MultiWorldProtocol">
-      <HintPath>..\..\MultiWorldProtocol\bin\Debug\net35\MultiWorldProtocol.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -46,11 +43,21 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ClientConnection.cs" />
+    <Compile Include="ConnectionState.cs" />
+    <Compile Include="GameInformation.cs" />
+    <Compile Include="PlayerItem.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\MultiWorldProtocol\MultiWorldProtocol.csproj">
+      <Project>{a2167653-9467-43ed-b29f-80851b5219f3}</Project>
+      <Name>MultiWorldProtocol</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

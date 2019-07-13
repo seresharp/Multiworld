@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Net.Sockets;
+using System.Threading;
 
 namespace MultiWorldProtocol.Messaging
 {
@@ -31,6 +33,39 @@ namespace MultiWorldProtocol.Messaging
             if(Buffer.Length != Length)
             {
                 throw new InvalidDataException("Buffer Length and length in data are mismatched");
+            }
+        }
+
+        /// <summary>
+        /// Blocking packet constructor from NetworkStream
+        /// Highly stateful and blocking
+        /// </summary>
+        /// <param name="stream"></param>
+        public MWPackedMessage(NetworkStream stream)
+        {
+            byte[] lengthBuffer = new byte[4];
+            int curPointer = 0;
+            while(curPointer < 4)
+            {
+                if (stream.DataAvailable)
+                {
+                    stream.Read(lengthBuffer, curPointer, 1);
+                    curPointer++;
+                }
+                Thread.Sleep(10);
+            }
+            Length = BitConverter.ToUInt32(lengthBuffer, 0);
+            Buffer = new byte[Length];
+
+            for (int i = 0; i < 4; i++)
+                Buffer[i] = lengthBuffer[i];
+            while(curPointer<Length)
+            {
+                if(stream.DataAvailable)
+                {
+                    stream.Read(Buffer, curPointer, (int)(Length - curPointer));
+                }
+                Thread.Sleep(10);
             }
         }
     }
