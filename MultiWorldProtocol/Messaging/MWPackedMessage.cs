@@ -49,8 +49,8 @@ namespace MultiWorldProtocol.Messaging
             {
                 if (stream.DataAvailable)
                 {
-                    stream.Read(lengthBuffer, curPointer, 1);
-                    curPointer++;
+                    var lenRead = stream.Read(lengthBuffer, curPointer, 1);
+                    curPointer+=lenRead;
                 }
                 Thread.Sleep(10);
             }
@@ -63,7 +63,8 @@ namespace MultiWorldProtocol.Messaging
             {
                 if(stream.DataAvailable)
                 {
-                    stream.Read(Buffer, curPointer, (int)(Length - curPointer));
+                    var lenRead = stream.Read(Buffer, curPointer, (int)(Length - curPointer));
+                    curPointer += lenRead;
                 }
                 Thread.Sleep(10);
             }

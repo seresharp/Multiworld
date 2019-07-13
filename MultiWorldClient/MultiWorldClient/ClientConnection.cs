@@ -33,8 +33,10 @@ namespace MultiWorldClient
             };
 
             _client.Connect(host, port);
+            SendMessage(new MWConnectMessage { });
             Console.WriteLine("Success!");
             ReadThread = new Thread(new ThreadStart(ReadWorker));
+            ReadThread.Start();
         }
 
         private void DoPing(object state)
@@ -73,6 +75,7 @@ namespace MultiWorldClient
             while(true)
             {
                 var message = new MWPackedMessage(stream);
+                ReadFromServer(message);
             }
         }
 
@@ -165,6 +168,7 @@ namespace MultiWorldClient
         {
             State.Uid = message.SenderUid;
             State.Connected = true;
+            Console.WriteLine("Connected");
             SendMessage(new MWJoinMessage { DisplayName = State.UserName, Token = "" });
         }
 
@@ -172,6 +176,7 @@ namespace MultiWorldClient
         {
             State.Token = message.Token;
             State.Joined = true;
+            Console.WriteLine("Joined");
             State.GameInfo = new GameInformation(message.PlayerId);
         }
 
