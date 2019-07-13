@@ -14,32 +14,11 @@ namespace MultiWorldServer
 {
     internal class Program
     {
-        private static ulong nextUID = 1;
-        private static ushort nextPID = 1;
 
-        private static readonly Random Rnd = new Random();
-        private static readonly MWMessagePacker Packer = new MWMessagePacker(new BinaryMWMessageEncoder());
-
-        private static readonly List<Client> Unidentified = new List<Client>();
-
-        private static readonly Dictionary<ulong, Client> Clients = new Dictionary<ulong, Client>();
-        private static readonly Dictionary<string, Session> Sessions = new Dictionary<string, Session>();
-        private static TcpListener _server = new TcpListener(IPAddress.Parse("127.0.0.1"), 5001);
         private static readonly Stopwatch Watch = new Stopwatch();
 
         private static void Main()
         {
-            Console.WriteLine("Enter IP and port in the form '127.0.0.1:5001'");
-
-            string[] input = Console.ReadLine().Split(':');
-            _server = new TcpListener(IPAddress.Parse(input[0]), int.Parse(input[1]));
-
-            _server.Start();
-
-            Console.WriteLine("Server started!");
-
-            _server.BeginAcceptTcpClient(AcceptClient, _server);
-
             Watch.Start();
 
             while (true)
@@ -109,69 +88,6 @@ namespace MultiWorldServer
             }
 
             // ReSharper disable once FunctionNeverReturns
-        }
-
-        private static bool SendMessage(MWMessage message, Client client)
-        {
-            if (client?.TcpClient == null || !client.TcpClient.Connected)
-            {
-                return false;
-            }
-
-            try
-            {
-                byte[] bytes = Packer.Pack(message).Buffer;
-
-                NetworkStream stream = client.TcpClient.GetStream();
-                stream.BeginWrite(bytes, 0, bytes.Length, WriteToClient, stream);
-                return true;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine($"Failed to send message to '{client.Session?.Name}':\n{e}");
-                return false;
-            }
-        }
-
-        private static void AcceptClient(IAsyncResult res)
-        {
-            Client client = new Client
-            {
-                TcpClient = _server.EndAcceptTcpClient(res)
-            };
-
-            _server.BeginAcceptTcpClient(AcceptClient, _server);
-
-            if (!client.TcpClient.Connected)
-            {
-                return;
-            }
-
-            client.TcpClient.ReceiveTimeout = 2000;
-            client.TcpClient.SendTimeout = 2000;
-
-            lock (Unidentified)
-            {
-                Unidentified.Add(client);
-            }
-        }
-
-        private static string GenerateToken()
-        {
-            byte[] bytes = new byte[16];
-
-            for (int i = 0; i < 16; i++)
-            {
-                bytes[i] = (byte)Rnd.Next(33, 126);
-            }
-
-            return Encoding.ASCII.GetString(bytes);
-        }
-
-        private static void WriteToClient(IAsyncResult res)
-        {
-            NetworkStream stream = (NetworkStream) res.AsyncState;
-            stream.EndWrite(res);
         }
 
         private static void ReadFromClient(IAsyncResult res)
@@ -297,25 +213,5 @@ namespace MultiWorldServer
             }
         }
 
-        private static Client GetClient(ulong uuid)
-        {
-            return Clients.TryGetValue(uuid, out Client client) ? client : null;
-        }
-
-        private class Client
-        {
-            public ulong UID;
-            public TcpClient TcpClient;
-            public bool FullyConnected;
-
-            public Session Session;
-        }
-
-        public class Session
-        {
-            public string Name;
-            public string Token;
-            public ushort PID;
-        }
     }
 }
