@@ -25,6 +25,7 @@ namespace MultiWorldServer
         private readonly Dictionary<string, Session> Sessions = new Dictionary<string, Session>();
         private TcpListener _server;
         private readonly Thread _readThread;
+        private readonly Timer ResendTimer;
 
         public Server(int port)
         {
@@ -36,6 +37,7 @@ namespace MultiWorldServer
             _readThread.Start();
             _server.BeginAcceptTcpClient(AcceptClient, _server);
             PingTimer = new Timer(DoPing, Clients, 1000, 1000);
+            ResendTimer = new Timer(DoResends, Clients, 500, 1000);
 
             Console.WriteLine("Server started!");
         }
@@ -47,6 +49,26 @@ namespace MultiWorldServer
                 foreach (Client client in Unidentified.Concat(Clients.Values))
                 {
                     SendMessage(new MWPingMessage(), client);
+                }
+            }
+        }
+
+        private void DoResends(object clients)
+        {
+            lock (_clientLock)
+            {
+                foreach (Client client in Clients.Values)
+                {
+                    if(client.Session!= null)
+                    {
+                        lock (client.Session.MessagesToConfirm)
+                        {
+                            foreach (MWMessage msg in client.Session.MessagesToConfirm)
+                            {
+                                SendMessage(msg, client);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -164,12 +186,15 @@ namespace MultiWorldServer
                 case MWMessageType.ItemConfigurationMessage:
                     break;
                 case MWMessageType.ItemConfigurationConfirmMessage:
+                    HandleConfigurationConfirm(sender, (MWItemConfigurationConfirmMessage)message);
                     break;
                 case MWMessageType.ItemReceiveMessage:
                     break;
                 case MWMessageType.ItemReceiveConfirmMessage:
+                    HandleItemReceiveConfirm(sender, (MWItemReceiveConfirmMessage)message);
                     break;
                 case MWMessageType.ItemSendMessage:
+                    HandleItemSend(sender, (MWItemSendMessage)message);
                     break;
                 case MWMessageType.ItemSendConfirmMessage:
                     break;
@@ -257,6 +282,51 @@ namespace MultiWorldServer
         private void HandleNotify(Client sender, MWNotifyMessage message)
         {
             Console.WriteLine($"[{sender.Session?.Name}]: {message.Message}");
+        }
+
+
+        private void HandleConfigurationConfirm(Client sender, MWItemConfigurationConfirmMessage message)
+        {
+            sender.Session.ConfirmMessage(message);
+        }
+
+        private void HandleItemReceiveConfirm(Client sender, MWItemReceiveConfirmMessage message)
+        {
+            sender.Session.ConfirmMessage(message);
+        }
+
+        private void HandleItemSend(Client sender, MWItemSendMessage message)
+        {
+            //Confirm sending the item to the sender
+            SendMessage(new MWItemSendConfirmMessage {Item = message.Item, To=message.To}, sender);
+            lock (sender.Session.PickedUpLocations)
+            {
+                if (!sender.Session.PickedUpLocations.Contains(message.Location))
+                {
+                    sender.Session.PickedUpLocations.Add(message.Location);
+                    SendItemTo(message.To, message.Item, sender.Session.Name);
+                }
+            }
+        }
+
+        private void SendItemTo(uint player, string Item, string From)
+        {
+            lock (_clientLock)
+            {
+                foreach (Client c in Clients.Values)
+                {
+                    if (c.Session.PID == player)
+                    {
+                        c.Session.QueueConfirmableMessage(new MWItemReceiveMessage { From = From, Item = Item });
+                        return;
+                    }
+                }
+            }
+        }
+
+        public void ConfigureItem(Client c, string Location, string Item)
+        {
+            c.Session.QueueConfirmableMessage(new MWItemConfigurationMessage { Location = Location, Item = Item });
         }
 
         private Client GetClient(ulong uuid)
