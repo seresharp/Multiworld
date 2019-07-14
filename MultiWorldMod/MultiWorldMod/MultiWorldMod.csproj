@@ -40,6 +40,9 @@
     <Reference Include="PlayMaker">
       <HintPath>..\..\..\..\References\PlayMaker.dll</HintPath>
     </Reference>
+    <Reference Include="RandomizerMod2.0">
+      <HintPath>..\..\..\HollowKnight.RandomizerMod\RandomizerMod2.0\bin\Release\RandomizerMod2.0.dll</HintPath>
+    </Reference>
     <Reference Include="SeanprCore">
       <HintPath>..\..\..\..\References\SeanprCore.dll</HintPath>
     </Reference>

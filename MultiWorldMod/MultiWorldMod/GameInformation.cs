@@ -7,8 +7,8 @@ namespace MultiWorldMod
 {
     public class GameInformation
     {
-        uint PlayerID;
-        Dictionary<string, PlayerItem> ItemLocations;
+        public readonly uint PlayerID;
+        public Dictionary<string, PlayerItem> ItemLocations;
 
         public GameInformation(uint playerId)
         {

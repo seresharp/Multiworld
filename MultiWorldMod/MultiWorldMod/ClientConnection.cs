@@ -5,10 +5,13 @@ using System.Text;
 using MultiWorldProtocol.Binary;
 using MultiWorldProtocol.Messaging;
 using System.Diagnostics;
+using System.IO;
+using System.Net.Mime;
 using MultiWorldProtocol.Messaging.Definitions.Messages;
 using System.Net.Sockets;
 using System.Threading;
 using Modding;
+using UnityEngine;
 
 namespace MultiWorldMod
 {
@@ -222,6 +225,8 @@ namespace MultiWorldMod
 
         private void HandleItemConfiguration(MWItemConfigurationMessage message)
         {
+            MultiWorldMod.Instance.Log(message.Location + " is " + message.Item + " for player " + message.PlayerId);
+
             State.GameInfo.SetLocation(message.Location, message.Item, message.PlayerId);
             SendMessage(new MWItemConfigurationConfirmMessage { Location = message.Location, Item = message.Item, PlayerId = message.PlayerId });
         }
@@ -251,6 +256,8 @@ namespace MultiWorldMod
                 messageEventQueue.Add(message);
             }
 
+            GiveItem(message.Item);
+
             //Do whatever we want to do when we get an item here, then confirm
             SendMessage(new MWItemReceiveConfirmMessage { Item = message.Item, From = message.From });
         }
@@ -268,6 +275,66 @@ namespace MultiWorldMod
         public void SendItem(string item, uint playerId)
         {
             ItemSendQueue.Add(new MWItemSendMessage { Item = item, To = playerId });
+        }
+
+        public bool GetItemAtLocation(string loc, out PlayerItem item)
+        {
+            return State.GameInfo.ItemLocations.TryGetValue(loc, out item);
+        }
+
+        public PlayerItem[] GetItemsInShop(string shopName)
+        {
+            List<PlayerItem> items = new List<PlayerItem>();
+
+            int i = 0;
+            while (GetItemAtLocation(shopName + "_" + (i++), out PlayerItem item))
+            {
+                items.Add(item);
+            }
+
+            return items.ToArray();
+        }
+
+        public void ObtainItem(string loc)
+        {
+            File.WriteAllLines(Application.persistentDataPath + "/test.txt", new [] {"Hello world"});
+            MultiWorldMod.Instance.Log("Here");
+
+            if (!GetItemAtLocation(loc, out PlayerItem item))
+            {
+                MultiWorldMod.Instance.Log("Location " + loc + " not found");
+                return;
+            }
+
+            MultiWorldMod.Instance.Log("Here 2");
+
+            if (item.PlayerId != State.GameInfo.PlayerID)
+            {
+                MultiWorldMod.Instance.Log("Giving item " + item.Item + " to player " + item.PlayerId);
+                ItemSendQueue.Add(new MWItemSendMessage {Item = item.Item, Location = loc, To = item.PlayerId});
+                return;
+            }
+
+            GiveItem(item.Item);
+        }
+
+        public void ObtainShopItem(string shopName, string itemName)
+        {
+            int i = 0;
+            while (GetItemAtLocation(shopName + "_" + (i++), out PlayerItem item))
+            {
+                if (item.Item == itemName)
+                {
+                    ObtainItem(shopName + "_" + (i - 1));
+                    break;
+                }
+            }
+        }
+
+        private void GiveItem(string item)
+        {
+            MultiWorldMod.Instance.Log("Giving item " + item);
+            PlayerData.instance.SetBool("MultiWorldItem." + item, true);
         }
     }
 }

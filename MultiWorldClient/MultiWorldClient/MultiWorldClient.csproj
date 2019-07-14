@@ -32,6 +32,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="RandomizerMod2.0">
+      <HintPath>..\..\..\HollowKnight.RandomizerMod\RandomizerMod2.0\bin\Release\RandomizerMod2.0.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />

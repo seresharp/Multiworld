@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using HutongGames.PlayMaker.Actions;
 using Modding;
+using RandomizerMod.Actions;
 using SeanprCore;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -29,7 +30,7 @@ namespace MultiWorldMod
             _flashEffect.SetActive(false);
             Object.DontDestroyOnLoad(_flashEffect);
 
-            connection = new ClientConnection("127.0.0.1", 5001, "Sean");
+            connection = new ClientConnection("127.0.0.1", 38281, "Sean");
             connection.ItemReceived += (from, item) =>
             {
                 Log($"Received item '{item}' from '{from}'");
@@ -39,6 +40,15 @@ namespace MultiWorldMod
             connection.MessageReceived += (from, message) =>
             {
                 Log($"[{from}]: {message}");
+            };
+
+            ChangeShinyIntoPlayerItem.OnItemReceived += location =>
+            {
+                Log("Received location from Randomizer: " + location);
+
+                connection.ObtainItem(location);
+
+                Log("After method call");
             };
         }
 
