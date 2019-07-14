@@ -26,8 +26,10 @@ namespace MultiWorldServer
         private TcpListener _server;
         private readonly Thread _readThread;
 
-        public Server(int port)
+        public Server(int port, ServerSettings settings)
         {
+            var randomization = MultiworldRandomizer.Randomize(settings);
+
             //Listen on any ip
             _server = new TcpListener(IPAddress.Parse("0.0.0.0"), port);
             _server.Start();

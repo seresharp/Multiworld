@@ -7,7 +7,12 @@ namespace MultiWorldServer
 {
     public static class MultiworldRandomizer
     {
-        public static void Randomize(ServerSettings settings)
+        /// <summary>
+        /// Creates a randomizad game with the given settings
+        /// </summary>
+        /// <param name="settings">The settings with which to randomize</param>
+        /// <returns>A dictionary of item -> item location</returns>
+        public static Dictionary<string, (int, string)>[] Randomize(ServerSettings settings)
         {
             int playerCount = settings.Players;
 
@@ -22,6 +27,8 @@ namespace MultiWorldServer
                     typeof(LogicManager).Assembly.GetManifestResourceStream("RandomizerMod.Resources.items.xml"));
             }
 
+            Dictionary<string, (int, string)>[] placements = new Dictionary<string, (int, string)>[playerCount];
+
             // Init random
             Random rnd = new Random(settings.Seed);
 
@@ -29,6 +36,8 @@ namespace MultiWorldServer
             Player[] players = new Player[playerCount];
             for (int i = 0; i < playerCount; i++)
             {
+                placements[i] = new Dictionary<string, (int, string)>();
+
                 players[i] = new Player
                 {
                     UnobtainedLocations = new List<string>(),
@@ -53,26 +62,50 @@ namespace MultiWorldServer
             }
 
             // Begin randomization
+            bool progressionPlaced = false;
             while (true)
             {
                 List<int> playersNeedingItems = new List<int>();
                 List<int> playersWithLocations = new List<int>();
                 for (int i = 0; i < playerCount; i++)
                 {
-                    players[i].UpdateProgression(settings);
-
-                    if (players[i].Progression.Count > 0)
+                    if (!progressionPlaced)
                     {
-                        playersNeedingItems.Add(i);
+                        players[i].UpdateProgression(settings);
+
+                        if (players[i].Progression.Count > 0)
+                        {
+                            playersNeedingItems.Add(i);
+                        }
+
+                        if (players[i].ReachableLocations.Count > 0)
+                        {
+                            playersWithLocations.Add(i);
+                        }
                     }
-
-                    if (players[i].ReachableLocations.Count > 0)
+                    else
                     {
-                        playersWithLocations.Add(i);
+                        if (players[i].UnobtainedItems.Count > 0)
+                        {
+                            playersNeedingItems.Add(i);
+                        }
+
+                        if (players[i].UnobtainedLocations.Count > 0)
+                        {
+                            playersWithLocations.Add(i);
+                        }
                     }
                 }
 
-                // Break loop if there are no more progression items to place
+                // Set flag for full randomness if no progression left
+                if (!progressionPlaced && playersNeedingItems.Count == 0)
+                {
+                    Console.WriteLine("Done placing progression");
+                    progressionPlaced = true;
+                    continue;
+                }
+
+                // Exit loop if all items are placed
                 if (playersNeedingItems.Count == 0)
                 {
                     break;
@@ -82,16 +115,54 @@ namespace MultiWorldServer
                 int playerToGiveItem =
                     playersNeedingItems[
                         InverseWeightedRandom(rnd, playersNeedingItems.Select(i => players[i]).ToArray())];
-                string itemToGive = players[playerToGiveItem].Progression.GetRandom(rnd);
-                int worldContainingItem = playersWithLocations.GetRandom(rnd);
-                string itemLocation = players[worldContainingItem].ReachableLocations.GetRandom(rnd);
+
+                // If no players have locations, all that's left is shops
+                // At this point, just choose fully randomly
+                int worldContainingItem = playersWithLocations.Count > 0
+                    ? playersWithLocations.GetRandom(rnd)
+                    : rnd.Next(playerCount);
+
+                string itemToGive;
+                string itemLocation;
+
+                if (!progressionPlaced)
+                {
+                    itemToGive = players[playerToGiveItem].Progression.GetRandom(rnd);
+                    itemLocation = players[worldContainingItem].ReachableLocations.GetRandom(rnd);
+                }
+                else
+                {
+                    itemToGive = players[playerToGiveItem].UnobtainedItems.GetRandom(rnd);
+
+                    // If there's no available locations, pick a shop instead
+                    itemLocation = players[worldContainingItem].UnobtainedLocations.Count > 0
+                        ? players[worldContainingItem].UnobtainedLocations.GetRandom(rnd)
+                        : LogicManager.ShopNames.GetRandom(rnd);
+                }
 
                 // Give item, remove location
                 players[playerToGiveItem].GiveItem(itemToGive);
                 players[worldContainingItem].TakeLocation(itemLocation);
 
+                if (LogicManager.ShopNames.Contains(itemLocation))
+                {
+                    // Shop names aren't unique, loop until we have a unique index for this shop
+                    // TODO: Make this better
+                    int index = 0;
+                    while (placements[worldContainingItem].ContainsKey(itemLocation + "_" + index))
+                    {
+                        index++;
+                    }
+
+                    itemLocation = itemLocation + "_" + index;
+                }
+
+                placements[worldContainingItem].Add(itemLocation, (playerToGiveItem, itemToGive));
+
                 Console.WriteLine($"Placing {itemToGive} ({playerToGiveItem}) at {itemLocation} ({worldContainingItem})");
             }
+
+            return placements;
         }
 
         private static int InverseWeightedRandom(Random rnd, Player[] players)
