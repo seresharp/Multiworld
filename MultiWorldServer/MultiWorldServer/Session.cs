@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using MultiWorldProtocol.Messaging;
+using MultiWorldProtocol.Messaging.Definitions.Messages;
 
 namespace MultiWorldServer
 {
@@ -12,6 +14,9 @@ namespace MultiWorldServer
         public string Name;
         public string Token;
         public ushort PID;
+
+        public readonly List<MWMessage> MessagesToConfirm = new List<MWMessage>();
+        public readonly HashSet<string> PickedUpLocations = new HashSet<string>();
 
         public Session(string Name)
         {
@@ -29,6 +34,64 @@ namespace MultiWorldServer
             }
 
             return Encoding.ASCII.GetString(bytes);
+        }
+
+        public void QueueConfirmableMessage(MWMessage message)
+        {
+            if (message.MessageType != MWMessageType.ItemConfigurationMessage && message.MessageType != MWMessageType.ItemReceiveMessage)
+            {
+                throw new InvalidOperationException("Server should only queue ItemConfiguration and ItemReceive messages for confirmation");
+            }
+            lock (MessagesToConfirm)
+            {
+                MessagesToConfirm.Add(message);
+            }
+        }
+
+        public void ConfirmMessage(MWMessage message)
+        {
+            if (message.MessageType == MWMessageType.ItemConfigurationConfirmMessage)
+            {
+                ConfirmItemConfiguration((MWItemConfigurationConfirmMessage)message);
+            }
+            else if (message.MessageType == MWMessageType.ItemReceiveConfirmMessage)
+            {
+                ConfirmItemReceive((MWItemReceiveConfirmMessage)message);
+            }
+            else
+            {
+                throw new InvalidOperationException("Must only confirm ItemConfiguration and ItemReceive messages.");
+            }
+        }
+
+        private void ConfirmItemConfiguration(MWItemConfigurationConfirmMessage message)
+        {
+            lock (MessagesToConfirm)
+            {
+                for (int i = MessagesToConfirm.Count - 1; i >= 0; i++)
+                {
+                    MWItemConfigurationMessage icm = MessagesToConfirm[i] as MWItemConfigurationMessage;
+                    if (icm.Item == message.Item && icm.PlayerId == message.PlayerId)
+                    {
+                        MessagesToConfirm.RemoveAt(i);
+                    }
+                }
+            }
+        }
+
+        private void ConfirmItemReceive(MWItemReceiveConfirmMessage message)
+        {
+            lock (MessagesToConfirm)
+            {
+                for (int i = MessagesToConfirm.Count - 1; i >= 0; i++)
+                {
+                    MWItemReceiveMessage icm = MessagesToConfirm[i] as MWItemReceiveMessage;
+                    if (icm.Item == message.Item && icm.From == message.From)
+                    {
+                        MessagesToConfirm.RemoveAt(i);
+                    }
+                }
+            }
         }
     }
 }

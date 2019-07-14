@@ -8,6 +8,7 @@ namespace MultiWorldProtocol.Messaging.Definitions.Messages
     public class MWItemSendConfirmMessage : MWMessage
     {
         public string Item { get; set; }
+        public string Location { get; set; }
         public uint To { get; set; }
 
         public MWItemSendConfirmMessage()
@@ -21,6 +22,7 @@ namespace MultiWorldProtocol.Messaging.Definitions.Messages
         public MWItemSendConfirmDefinition() : base(MWMessageType.ItemSendConfirmMessage)
         {
             Properties.Add(new MWMessageProperty<string, MWItemSendConfirmMessage>(nameof(MWItemSendConfirmMessage.Item)));
+            Properties.Add(new MWMessageProperty<string, MWItemSendConfirmMessage>(nameof(MWItemSendConfirmMessage.Location)));
             Properties.Add(new MWMessageProperty<uint, MWItemSendConfirmMessage>(nameof(MWItemSendConfirmMessage.To)));
         }
     }
