@@ -87,10 +87,11 @@ namespace MultiWorldServer
 
         private void ReadWorker()
         {
+            //Allocating outside of the loop to not reallocate every time
+            List<(Client, MWPackedMessage)> messages = new List<(Client, MWPackedMessage)>();
             while (true)
             {
-                List<(Client, MWPackedMessage)> messages = new List<(Client, MWPackedMessage)>();
-
+                messages.Clear();
                 lock (_clientLock)
                 {
                     foreach (Client client in Unidentified.Concat(Clients.Values))
