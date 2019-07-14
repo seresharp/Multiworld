@@ -14,7 +14,7 @@ namespace MultiWorldServer
     class Server
     {
         private ulong nextUID = 1;
-        private ushort nextPID = 1;
+        private ushort nextPID = 0;
         private readonly MWMessagePacker Packer = new MWMessagePacker(new BinaryMWMessageEncoder());
         private readonly List<Client> Unidentified = new List<Client>();
 
@@ -27,9 +27,13 @@ namespace MultiWorldServer
         private readonly Thread _readThread;
         private readonly Timer ResendTimer;
 
+        private readonly ServerSettings _settings;
+        private Dictionary<string, (int, string)>[] _itemPlacements;
+
         public Server(int port, ServerSettings settings)
         {
-            var randomization = MultiworldRandomizer.Randomize(settings);
+            _settings = settings;
+            _itemPlacements = MultiworldRandomizer.Randomize(_settings);
 
             //Listen on any ip
             _server = new TcpListener(IPAddress.Parse("0.0.0.0"), port);
@@ -249,33 +253,56 @@ namespace MultiWorldServer
         {
             lock (_clientLock)
             {
-                if (Clients.ContainsKey(sender.UID) && message is MWJoinMessage joinMsg)
+                if (!Clients.ContainsKey(sender.UID))
                 {
-                    if (string.IsNullOrEmpty(joinMsg.Token))
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(message.Token))
+                {
+                    if (Clients.Count(client => client.Value.FullyConnected) >= _settings.Players)
                     {
-                        while (sender.Session == null || Sessions.ContainsKey(sender.Session.Token))
-                        {
-                            sender.Session = new Session(joinMsg.DisplayName) {PID = nextPID++};
-                        }
-
-                        Sessions.Add(sender.Session.Token, sender.Session);
-                        sender.FullyConnected = true;
-
-                        Console.WriteLine($"{joinMsg.DisplayName} has token {sender.Session.Token}");
-                        SendMessage(new MWJoinConfirmMessage { Token = sender.Session.Token, DisplayName = sender.Session.Name }, sender);
+                        sender.TcpClient.Close();
+                        return;
                     }
-                    else
-                    {
-                        if (!Sessions.TryGetValue(joinMsg.Token, out Session session))
-                        {
-                            SendMessage(new MWDisconnectMessage(), sender);
-                            sender.TcpClient.Close();
-                            return;
-                        }
 
-                        sender.Session = session;
-                        Unidentified.Remove(sender);
-                        sender.FullyConnected = true;
+                    while (sender.Session == null || Sessions.ContainsKey(sender.Session.Token))
+                    {
+                        sender.Session = new Session(message.DisplayName) {PID = nextPID++};
+                    }
+
+                    Sessions.Add(sender.Session.Token, sender.Session);
+                    sender.FullyConnected = true;
+
+                    Console.WriteLine($"{message.DisplayName} has token {sender.Session.Token}");
+                    SendMessage(new MWJoinConfirmMessage { Token = sender.Session.Token, DisplayName = sender.Session.Name }, sender);
+                }
+                else
+                {
+                    if (!Sessions.TryGetValue(message.Token, out Session session))
+                    {
+                        SendMessage(new MWDisconnectMessage(), sender);
+                        sender.TcpClient.Close();
+                        return;
+                    }
+
+                    sender.Session = session;
+                    sender.FullyConnected = true;
+                }
+
+                IEnumerable<Client> connected =
+                    Clients.Where(client => client.Value.FullyConnected).Select(client => client.Value);
+
+                if (connected.Count() >= _settings.Players)
+                {
+                    foreach (Client c in connected)
+                    {
+                        foreach (string loc in _itemPlacements[c.Session.PID].Keys)
+                        {
+                            (int player, string item) = _itemPlacements[c.Session.PID][loc];
+
+                            ConfigureItem(c, loc, item, (ushort)player);
+                        }
                     }
                 }
             }
@@ -326,9 +353,9 @@ namespace MultiWorldServer
             }
         }
 
-        public void ConfigureItem(Client c, string Location, string Item)
+        public void ConfigureItem(Client c, string Location, string Item, ushort player)
         {
-            c.Session.QueueConfirmableMessage(new MWItemConfigurationMessage { Location = Location, Item = Item });
+            c.Session.QueueConfirmableMessage(new MWItemConfigurationMessage { Location = Location, Item = Item, PlayerId = player});
         }
 
         private Client GetClient(ulong uuid)

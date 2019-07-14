@@ -71,6 +71,11 @@ namespace MultiWorldClient
 
         private void ReadWorker()
         {
+            while (!_client.Connected)
+            {
+                Thread.Sleep(100);
+            }
+
             NetworkStream stream = _client.GetStream();
             while(true)
             {

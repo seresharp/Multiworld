@@ -68,7 +68,7 @@ namespace MultiWorldServer
         {
             lock (MessagesToConfirm)
             {
-                for (int i = MessagesToConfirm.Count - 1; i >= 0; i++)
+                for (int i = MessagesToConfirm.Count - 1; i >= 0; i--)
                 {
                     MWItemConfigurationMessage icm = MessagesToConfirm[i] as MWItemConfigurationMessage;
                     if (icm.Item == message.Item && icm.PlayerId == message.PlayerId)
@@ -83,7 +83,7 @@ namespace MultiWorldServer
         {
             lock (MessagesToConfirm)
             {
-                for (int i = MessagesToConfirm.Count - 1; i >= 0; i++)
+                for (int i = MessagesToConfirm.Count - 1; i >= 0; i--)
                 {
                     MWItemReceiveMessage icm = MessagesToConfirm[i] as MWItemReceiveMessage;
                     if (icm.Item == message.Item && icm.From == message.From)
