@@ -15,7 +15,7 @@ namespace MultiWorldServer
         public string Token;
         public ushort PID;
 
-        public readonly List<MWMessage> MessagesToConfirm = new List<MWMessage>();
+        public readonly List<ResendEntry> MessagesToConfirm = new List<ResendEntry>();
         public readonly HashSet<string> PickedUpLocations = new HashSet<string>();
 
         public Session(string Name)
@@ -44,7 +44,7 @@ namespace MultiWorldServer
             }
             lock (MessagesToConfirm)
             {
-                MessagesToConfirm.Add(message);
+                MessagesToConfirm.Add(new ResendEntry(message));
             }
         }
 
@@ -70,7 +70,7 @@ namespace MultiWorldServer
             {
                 for (int i = MessagesToConfirm.Count - 1; i >= 0; i--)
                 {
-                    MWItemConfigurationMessage icm = MessagesToConfirm[i] as MWItemConfigurationMessage;
+                    MWItemConfigurationMessage icm = MessagesToConfirm[i].Message as MWItemConfigurationMessage;
                     if (icm.Item == message.Item && icm.PlayerId == message.PlayerId)
                     {
                         MessagesToConfirm.RemoveAt(i);
@@ -85,7 +85,7 @@ namespace MultiWorldServer
             {
                 for (int i = MessagesToConfirm.Count - 1; i >= 0; i--)
                 {
-                    MWItemReceiveMessage icm = MessagesToConfirm[i] as MWItemReceiveMessage;
+                    MWItemReceiveMessage icm = MessagesToConfirm[i].Message as MWItemReceiveMessage;
                     if (icm.Item == message.Item && icm.From == message.From)
                     {
                         MessagesToConfirm.RemoveAt(i);

@@ -69,9 +69,15 @@ namespace MultiWorldServer
                     {
                         lock (client.Session.MessagesToConfirm)
                         {
-                            foreach (MWMessage msg in client.Session.MessagesToConfirm)
+                            var now = DateTime.Now;
+                            foreach (ResendEntry entry in client.Session.MessagesToConfirm)
                             {
-                                SendMessage(msg, client);
+                                if (now - entry.LastSent > TimeSpan.FromSeconds(5))
+                                {
+                                    var msg = entry.Message;
+                                    SendMessage(msg, client);
+                                    entry.LastSent = now;
+                                }
                             }
                         }
                     }
