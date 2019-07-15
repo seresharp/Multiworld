@@ -10,6 +10,7 @@
         JoinMessage,
         JoinConfirmMessage,
         LeaveMessage,
+        ItemConfigurationRequestMessage,
         ItemConfigurationMessage,
         ItemConfigurationConfirmMessage,
         ItemReceiveMessage,

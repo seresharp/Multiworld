@@ -153,7 +153,8 @@ namespace MultiWorldServer
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Failed to send message to '{client.Session?.Name}':\n{e}");
+                Console.WriteLine($"Failed to send message to '{client.Session?.Name}':\n{e}\nDisconnecting");
+                DisconnectClient(client);
                 return false;
             }
         }
@@ -162,6 +163,16 @@ namespace MultiWorldServer
         {
             NetworkStream stream = (NetworkStream)res.AsyncState;
             stream.EndWrite(res);
+        }
+
+        private void DisconnectClient(Client client)
+        {
+            SendMessage(new MWDisconnectMessage(), client);
+            //Wait a bit to give the message a chance to be sent at least before closing the client
+            Thread.Sleep(10);
+            client.TcpClient.Close();
+            lock (_clientLock)
+                Clients.Remove(client.UID);
         }
 
         private void ReadFromClient(Client sender, MWPackedMessage packed)
@@ -216,6 +227,9 @@ namespace MultiWorldServer
                     break;
                 case MWMessageType.PingMessage:
                     break;
+                case MWMessageType.ItemConfigurationRequestMessage:
+                    HandleItemConfigurationRequest(sender, (MWItemConfigurationRequestMessage)message);
+                    break;
                 case MWMessageType.InvalidMessage:
                 default:
                     throw new InvalidOperationException("Received Invalid Message Type");
@@ -246,14 +260,7 @@ namespace MultiWorldServer
 
         private void HandleDisconnect(Client sender, MWDisconnectMessage message)
         {
-            lock (_clientLock)
-            {
-                if (Clients.ContainsValue(sender))
-                {
-                    sender.TcpClient.Close();
-                    Clients.Remove(sender.UID);
-                }
-            }
+            DisconnectClient(sender);
         }
 
         private void HandleJoin(Client sender, MWJoinMessage message)
@@ -356,6 +363,19 @@ namespace MultiWorldServer
                         c.Session.QueueConfirmableMessage(new MWItemReceiveMessage { From = From, Item = Item });
                         return;
                     }
+                }
+            }
+        }
+
+        private void HandleItemConfigurationRequest(Client sender, MWItemConfigurationRequestMessage msg)
+        {
+            if (sender.FullyConnected && sender.Session != null)
+            {
+                foreach (string loc in _itemPlacements[sender.Session.PID].Keys)
+                {
+                    (int player, string item) = _itemPlacements[sender.Session.PID][loc];
+
+                    ConfigureItem(sender, loc, item, (ushort)player);
                 }
             }
         }
