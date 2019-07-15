@@ -163,8 +163,14 @@ namespace MultiWorldServer
 
         private static void WriteToClient(IAsyncResult res)
         {
-            NetworkStream stream = (NetworkStream)res.AsyncState;
-            stream.EndWrite(res);
+            try
+            {
+                NetworkStream stream = (NetworkStream)res.AsyncState;
+                stream.EndWrite(res);
+            }
+            catch (Exception e)
+            {
+            }
         }
 
         private void DisconnectClient(Client client)
@@ -189,6 +195,8 @@ namespace MultiWorldServer
                 Console.WriteLine(e);
                 return;
             }
+
+            Console.WriteLine(message.GetType());
 
             switch (message.MessageType)
             {
@@ -291,7 +299,7 @@ namespace MultiWorldServer
                     sender.FullyConnected = true;
 
                     Console.WriteLine($"{message.DisplayName} has token {sender.Session.Token}");
-                    SendMessage(new MWJoinConfirmMessage { Token = sender.Session.Token, DisplayName = sender.Session.Name }, sender);
+                    SendMessage(new MWJoinConfirmMessage { Token = sender.Session.Token, DisplayName = sender.Session.Name, PlayerId = sender.Session.PID }, sender);
                 }
                 else
                 {
@@ -343,7 +351,7 @@ namespace MultiWorldServer
         private void HandleItemSend(Client sender, MWItemSendMessage message)
         {
             //Confirm sending the item to the sender
-            SendMessage(new MWItemSendConfirmMessage {Item = message.Item, To=message.To}, sender);
+            SendMessage(new MWItemSendConfirmMessage {Item = message.Item, To=message.To, Location=message.Location}, sender);
             lock (sender.Session.PickedUpLocations)
             {
                 if (!sender.Session.PickedUpLocations.Contains(message.Location))

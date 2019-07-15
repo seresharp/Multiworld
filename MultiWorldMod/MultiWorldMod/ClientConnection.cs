@@ -235,7 +235,7 @@ namespace MultiWorldMod
         private void HandleJoinConfirm(MWJoinConfirmMessage message)
         {
             //Token is empty token if we connected for the first time
-            if (State.Token == "")
+            if (string.IsNullOrEmpty(State.Token))
             {
                 State.Token = message.Token;
                 State.Joined = true;
