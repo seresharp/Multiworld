@@ -19,24 +19,35 @@ namespace MultiWorldClient
         private ConnectionState State;
         private List<MWItemSendMessage> ItemSendQueue = new List<MWItemSendMessage>();
         private Thread ReadThread;
+        private readonly string _host;
+        private readonly int _port;
 
         public ClientConnection(string host, int port, string Username)
         {
             State = new ConnectionState();
             State.UserName = Username;
             PingTimer = new Timer(DoPing, State, 1000, 1000);
+            _host = host;
+            _port = port;
 
             _client = new TcpClient
             {
                 ReceiveTimeout = 2000,
                 SendTimeout = 2000
             };
-
-            _client.Connect(host, port);
-            SendMessage(new MWConnectMessage { });
-            Console.WriteLine("Success!");
+            Reconnect();
             ReadThread = new Thread(new ThreadStart(ReadWorker));
             ReadThread.Start();
+        }
+
+        private void Reconnect()
+        {
+            if (State.Connected == false)
+            {
+                _client.Connect(_host, _port);
+                SendMessage(new MWConnectMessage { });
+                Console.WriteLine("Success!");
+            }
         }
 
         private void DoPing(object state)
@@ -66,21 +77,26 @@ namespace MultiWorldClient
             catch (Exception e)
             {
                 Console.WriteLine($"Failed to send message '{msg}' to server:\n{e}");
+                State.Connected = false;
+                Reconnect();
             }
         }
 
         private void ReadWorker()
         {
-            while (!_client.Connected)
+            while (_client != null)
             {
-                Thread.Sleep(100);
-            }
+                while (!_client.Connected)
+                {
+                    Thread.Sleep(100);
+                }
 
-            NetworkStream stream = _client.GetStream();
-            while(true)
-            {
-                var message = new MWPackedMessage(stream);
-                ReadFromServer(message);
+                NetworkStream stream = _client.GetStream();
+                while (_client.Connected)
+                {
+                    var message = new MWPackedMessage(stream);
+                    ReadFromServer(message);
+                }
             }
         }
 
@@ -174,15 +190,26 @@ namespace MultiWorldClient
             State.Uid = message.SenderUid;
             State.Connected = true;
             Console.WriteLine("Connected");
-            SendMessage(new MWJoinMessage { DisplayName = State.UserName, Token = "" });
+            SendMessage(new MWJoinMessage { DisplayName = State.UserName, Token = State.Token });
         }
 
         private void HandleJoinConfirm(MWJoinConfirmMessage message)
         {
-            State.Token = message.Token;
-            State.Joined = true;
-            Console.WriteLine("Joined");
-            State.GameInfo = new GameInformation(message.PlayerId);
+            //Token is empty token if we connected for the first time
+            if (State.Token == "")
+            {
+                State.Token = message.Token;
+                State.Joined = true;
+                Console.WriteLine("Joined");
+                State.GameInfo = new GameInformation(message.PlayerId);
+            }
+            else
+            {
+                State.Token = message.Token;
+                State.Joined = true;
+                Console.WriteLine("rejoined");
+                SendMessage(new MWItemConfigurationRequestMessage());
+            }
         }
 
         private void HandleItemConfiguration(MWItemConfigurationMessage message)
