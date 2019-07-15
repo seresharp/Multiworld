@@ -52,8 +52,10 @@ namespace MultiWorldServer
         {
             lock (_clientLock)
             {
-                foreach (Client client in Unidentified.Concat(Clients.Values))
+                List<Client> clientList = Clients.Values.ToList();
+                for (int i = clientList.Count - 1; i >= 0; i--)
                 {
+                    Client client = clientList[i];
                     SendMessage(new MWPingMessage(), client);
                 }
             }
