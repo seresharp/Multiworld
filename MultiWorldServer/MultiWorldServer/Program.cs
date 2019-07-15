@@ -1,4 +1,7 @@
-﻿namespace MultiWorldServer
+﻿using System;
+using System.Diagnostics.Eventing.Reader;
+
+namespace MultiWorldServer
 {
     internal class Program
     {
@@ -6,7 +9,23 @@
 
         private static void Main()
         {
-            Serv = new Server(38281, new ServerSettings {Seed = 12346, Players = 2});
+            Console.WriteLine("Enter number of players");
+            int players = int.Parse(Console.ReadLine());
+            Console.WriteLine("Enter seed (Leave blank for random)");
+            string seedStr = Console.ReadLine();
+            int seed;
+            if (string.IsNullOrEmpty(seedStr))
+            {
+                seed = new Random().Next();
+            }
+            else if (!int.TryParse(seedStr, out seed))
+            {
+                seed = seedStr.GetHashCode();
+            }
+
+            Console.WriteLine("Seed number is " + seed);
+
+            Serv = new Server(38281, new ServerSettings {Seed = seed, Players = players});
         }
     }
 }

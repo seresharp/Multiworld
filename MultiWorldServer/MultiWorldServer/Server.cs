@@ -196,8 +196,6 @@ namespace MultiWorldServer
                 return;
             }
 
-            Console.WriteLine(message.GetType());
-
             switch (message.MessageType)
             {
                 case MWMessageType.SharedCore:
@@ -370,6 +368,8 @@ namespace MultiWorldServer
                 {
                     if (c.Session.PID == player)
                     {
+                        Console.WriteLine($"Sending item '{Item}' to '{c.Session.Name}', from '{From}'");
+
                         c.Session.QueueConfirmableMessage(new MWItemReceiveMessage { From = From, Item = Item });
                         return;
                     }

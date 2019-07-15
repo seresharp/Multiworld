@@ -96,7 +96,7 @@ namespace MultiWorldMod
 
         public override string GetVersion()
         {
-            return "0.0.1";
+            return "0.0.2";
         }
 
         private void AddLanguageOverride(string key, string sheetTitle, string lang)
@@ -123,8 +123,6 @@ namespace MultiWorldMod
 
         private void NewScene(Scene from, Scene to)
         {
-            Object.DestroyImmediate(GameObject.Find("Randomizer Shiny"));
-
             foreach ((string loc, ReqDef def) in _itemCache)
             {
                 if (def.sceneName != to.name)
@@ -271,6 +269,16 @@ namespace MultiWorldMod
         {
             orig(self);
 
+            // Dream nail fix
+            if (self.gameObject.scene.name == SceneNames.RestingGrounds_04)
+            {
+                ChangeBoolTest("Binding Shield Activate", "FSM", "Check", "MultiWorldMod.Dream_Nail");
+                ChangeBoolTest("Dreamer Plaque Inspect", "Conversation Control", "End", "MultiWorldMod.Dream_Nail");
+                ChangeBoolTest("Dreamer Scene 2", "Control", "Init", "MultiWorldMod.Dream_Nail");
+                ChangeBoolTest("PreDreamnail", "FSM", "Check", "MultiWorldMod.Dream_Nail");
+                ChangeBoolTest("PostDreamnail", "FSM", "Check", "MultiWorldMod.Dream_Nail");
+            }
+
             foreach ((string loc, ReqDef def) in _itemCache)
             {
                 if (!(self.gameObject.scene.name == def.sceneName &&
@@ -297,6 +305,29 @@ namespace MultiWorldMod
             }
         }
 
+        private void ChangeBoolTest(string objectName, string fsmName, string stateName, string boolName)
+        {
+            GameObject obj = GameObject.Find(objectName);
+            if (obj == null)
+            {
+                return;
+            }
+
+            PlayMakerFSM fsm = obj.LocateFSM(fsmName);
+            if (fsm == null)
+            {
+                return;
+            }
+
+            PlayerDataBoolTest test = fsm.GetState(stateName)?.GetActionOfType<PlayerDataBoolTest>();
+            if (test == null)
+            {
+                return;
+            }
+
+            test.boolName = boolName;
+        }
+
         private void RemoveFling(GameObject obj)
         {
             PlayMakerFSM fsm = obj.LocateFSM("Shiny Control");
@@ -314,14 +345,15 @@ namespace MultiWorldMod
         private void ReplaceWithShiny(GameObject obj, string loc)
         {
             Vector3 pos = obj.transform.position;
+            Transform parent = obj.transform.parent;
             Object.DestroyImmediate(obj.gameObject);
 
-            GameObject shiny = Object.Instantiate(_shinyItem);
+            GameObject shiny = Object.Instantiate(_shinyItem, parent, true);
             shiny.name = "Randomizer Shiny";
             shiny.transform.position = pos;
             RemoveFling(shiny);
 
-            shiny.SetActive(true);
+            shiny.SetActive(loc != "Desolate_Dive");
 
             ModifyShiny(shiny.LocateFSM("Shiny Control"), loc);
         }
@@ -473,7 +505,7 @@ namespace MultiWorldMod
 
             if (boolName == nameof(PlayerData.gotSlyCharm))
             {
-                return Settings.SlyCharm;
+                return Ref.PD.GetBool("MultiWorldMod.Nailmaster's_Glory");
             }
 
             if (boolName.StartsWith("MultiWorldMod."))
