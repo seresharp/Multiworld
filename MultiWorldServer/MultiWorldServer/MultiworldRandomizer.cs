@@ -24,7 +24,7 @@ namespace MultiWorldServer
             if (!LogicManager.Loaded)
             {
                 LogicManager.ParseXML(
-                    typeof(LogicManager).Assembly.GetManifestResourceStream("RandomizerMod.Resources.items.xml"));
+                    typeof(Program).Assembly.GetManifestResourceStream("MultiWorldServer.items.xml"));
             }
 
             Dictionary<string, (int, string)>[] placements = new Dictionary<string, (int, string)>[playerCount];
