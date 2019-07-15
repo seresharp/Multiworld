@@ -256,7 +256,7 @@ namespace MultiWorldMod
                 messageEventQueue.Add(message);
             }
 
-            GiveItem(message.Item);
+            GiveItem(message.From, message.Item);
 
             //Do whatever we want to do when we get an item here, then confirm
             SendMessage(new MWItemReceiveConfirmMessage { Item = message.Item, From = message.From });
@@ -297,25 +297,20 @@ namespace MultiWorldMod
 
         public void ObtainItem(string loc)
         {
-            File.WriteAllLines(Application.persistentDataPath + "/test.txt", new [] {"Hello world"});
-            MultiWorldMod.Instance.Log("Here");
-
             if (!GetItemAtLocation(loc, out PlayerItem item))
             {
                 MultiWorldMod.Instance.Log("Location " + loc + " not found");
                 return;
             }
 
-            MultiWorldMod.Instance.Log("Here 2");
-
             if (item.PlayerId != State.GameInfo.PlayerID)
             {
                 MultiWorldMod.Instance.Log("Giving item " + item.Item + " to player " + item.PlayerId);
-                ItemSendQueue.Add(new MWItemSendMessage {Item = item.Item, Location = loc, To = item.PlayerId});
+                SendItem(item.Item, item.PlayerId);
                 return;
             }
 
-            GiveItem(item.Item);
+            GiveItem(State.UserName, item.Item);
         }
 
         public void ObtainShopItem(string shopName, string itemName)
@@ -331,10 +326,9 @@ namespace MultiWorldMod
             }
         }
 
-        private void GiveItem(string item)
+        private void GiveItem(string from, string item)
         {
-            MultiWorldMod.Instance.Log("Giving item " + item);
-            PlayerData.instance.SetBool("MultiWorldItem." + item, true);
+            ItemReceived?.Invoke(from, item);
         }
     }
 }
