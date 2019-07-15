@@ -59,16 +59,37 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\References\UnityEngine.Physics2DModule.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\References\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\References\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\References\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ClientConnection.cs" />
     <Compile Include="ConnectionState.cs" />
     <Compile Include="GameInformation.cs" />
+    <Compile Include="GlobalSettings.cs" />
     <Compile Include="LogHelper.cs" />
     <Compile Include="LogicManager.cs" />
+    <Compile Include="MiscSceneChanges.cs" />
     <Compile Include="MultiWorldMod.cs" />
     <Compile Include="PlayerItem.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RandomizerBoolTest.cs" />
+    <Compile Include="RandomizerCallStaticMethod.cs" />
+    <Compile Include="RandomizerChangeScene.cs" />
+    <Compile Include="RandomizerExecuteLambda.cs" />
+    <Compile Include="RandomizerSellRelics.cs" />
+    <Compile Include="RandomizerSetBool.cs" />
+    <Compile Include="RandomizerSetHardSave.cs" />
     <Compile Include="SaveSettings.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -302,14 +302,20 @@ namespace MultiWorldMod
             return State.GameInfo.ItemLocations.TryGetValue(loc, out item);
         }
 
-        public PlayerItem[] GetItemsInShop(string shopName)
+        public (string, PlayerItem)[] GetItemsInShop(string shopName)
         {
-            List<PlayerItem> items = new List<PlayerItem>();
+            List<(string, PlayerItem)> items = new List<(string, PlayerItem)>();
 
             int i = 0;
-            while (GetItemAtLocation(shopName + "_" + (i++), out PlayerItem item))
+            while (true)
             {
-                items.Add(item);
+                string loc = shopName + "_" + (i++);
+                if (!GetItemAtLocation(loc, out PlayerItem item))
+                {
+                    break;
+                }
+
+                items.Add((loc, item));
             }
 
             return items.ToArray();
@@ -349,6 +355,16 @@ namespace MultiWorldMod
         private void GiveItem(string from, string item)
         {
             ItemReceived?.Invoke(from, item);
+        }
+
+        public uint GetPID()
+        {
+            return State.GameInfo.PlayerID;
+        }
+
+        public string GetUserName()
+        {
+            return State.UserName;
         }
     }
 }

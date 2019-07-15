@@ -2,13 +2,16 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GlobalEnums;
 using HutongGames.PlayMaker;
 using HutongGames.PlayMaker.Actions;
 using JetBrains.Annotations;
 using Modding;
+using RandomizerMod;
 using SeanprCore;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 namespace MultiWorldMod
@@ -16,8 +19,13 @@ namespace MultiWorldMod
     [PublicAPI]
     public class MultiWorldMod : Mod
     {
+        private static readonly Sprite BlackPixel = CanvasUtil.NullSprite(new byte[] { 0x00, 0x00, 0x00, 0x55 });
+
         private static GameObject _shinyItem;
         private static ClientConnection connection;
+
+        private static Dictionary<string, Dictionary<string, string>> _languageOverrides = new Dictionary<string, Dictionary<string, string>>();
+        private static Dictionary<string, Sprite> _sprites;
 
         private static Dictionary<string, string> _secondaryBools = new Dictionary<string, string>
         {
@@ -35,6 +43,7 @@ namespace MultiWorldMod
         public static MultiWorldMod Instance { get; private set; }
 
         public SaveSettings Settings { get; set; } = new SaveSettings();
+        public GlobalSettings Config { get; set; } = new GlobalSettings();
 
         public override ModSettings SaveSettings
         {
@@ -42,9 +51,18 @@ namespace MultiWorldMod
             set => Settings = value is SaveSettings saveSettings ? saveSettings : Settings;
         }
 
+        public override ModSettings GlobalSettings
+        {
+            get => Config = Config ?? new GlobalSettings();
+            set => Config = value is GlobalSettings globalSettings ? globalSettings : Config;
+        }
+
         public override void Initialize(Dictionary<string, Dictionary<string, GameObject>> preloaded)
         {
             Instance = this;
+
+            // Load images
+            _sprites = ResourceHelper.GetSprites("MultiWorldMod.Resources.");
 
             // Create shiny object cache
             _shinyItem = Object.Instantiate(preloaded[SceneNames.Tutorial_01]["_Props/Chest/Item/Shiny Item (1)"]);
@@ -58,18 +76,55 @@ namespace MultiWorldMod
             ModHooks.Instance.SetPlayerBoolHook += SetBoolOverride;
             ModHooks.Instance.GetPlayerBoolHook += GetBoolOverride;
             ModHooks.Instance.NewGameHook += SetNewGameVars;
+            ModHooks.Instance.LanguageGetHook += LanguageOverride;
             On.PlayMakerFSM.OnEnable += ModifyFSM;
             UnityEngine.SceneManagement.SceneManager.activeSceneChanged += NewScene;
 
+            MiscSceneChanges.Hook();
+
+            // Config doesn't generate values unless they are assigned
+            Config.IP = Config.IP;
+            Config.Port = Config.Port;
+            Config.UserName = Config.UserName;
+
             // Setup connection to server
-            connection = new ClientConnection("127.0.0.1", 38281, "Sean");
+            connection = new ClientConnection(Config.IP, Config.Port, Config.UserName);
 
             connection.ItemReceived += GetItem;
             connection.MessageReceived += LogMessage;
         }
 
+        public override string GetVersion()
+        {
+            return "0.0.1";
+        }
+
+        private void AddLanguageOverride(string key, string sheetTitle, string lang)
+        {
+            if (!_languageOverrides.TryGetValue(sheetTitle, out Dictionary<string, string> sheet))
+            {
+                sheet = new Dictionary<string, string>();
+                _languageOverrides[sheetTitle] = sheet;
+            }
+
+            sheet[key] = lang;
+        }
+
+        private string LanguageOverride(string key, string sheetTitle)
+        {
+            if (_languageOverrides.TryGetValue(sheetTitle, out Dictionary<string, string> sheet) &&
+                sheet.TryGetValue(key, out string lang))
+            {
+                return lang;
+            }
+
+            return Language.Language.GetInternal(key, sheetTitle);
+        }
+
         private void NewScene(Scene from, Scene to)
         {
+            Object.DestroyImmediate(GameObject.Find("Randomizer Shiny"));
+
             foreach ((string loc, ReqDef def) in _itemCache)
             {
                 if (def.sceneName != to.name)
@@ -90,6 +145,7 @@ namespace MultiWorldMod
                 else if (def.newShiny)
                 {
                     GameObject shiny = Object.Instantiate(_shinyItem);
+                    shiny.name = "Randomizer Shiny";
                     shiny.transform.position = new Vector2(def.x, def.y);
                     RemoveFling(shiny);
 
@@ -98,6 +154,106 @@ namespace MultiWorldMod
                     ModifyShiny(shiny.LocateFSM("Shiny Control"), loc);
                 }
             }
+
+            // Shops
+            foreach (string shopName in LogicManager.ShopNames)
+            {
+                ShopDef shopDef = LogicManager.GetShopDef(shopName);
+                if (shopDef.sceneName != to.name)
+                {
+                    continue;
+                }
+
+                // Find the shop and save an item for use later
+                GameObject shopObj = to.FindGameObject(shopDef.objectName);
+                ShopMenuStock shop = shopObj.GetComponent<ShopMenuStock>();
+                GameObject itemPrefab = Object.Instantiate(shop.stock[0]);
+                itemPrefab.SetActive(false);
+
+                List<GameObject> newStock = new List<GameObject>();
+
+                foreach ((string loc, PlayerItem item) in connection.GetItemsInShop(shopName))
+                {
+                    ReqDef itemDef = LogicManager.GetItemDef(item.Item);
+
+                    // Create a new shop item for this item def
+                    GameObject newItemObj = Object.Instantiate(itemPrefab);
+                    newItemObj.SetActive(false);
+
+                    if (itemDef.type == ItemType.Geo)
+                    {
+                        AddLanguageOverride(item.Item, "UI", itemDef.geo + " Geo");
+                        itemDef.nameKey = item.Item;
+                    }
+
+                    if (item.PlayerId != connection.GetPID())
+                    {
+                        string newNameKey = itemDef.nameKey + "_" + item.PlayerId;
+                        AddLanguageOverride(newNameKey, "UI",
+                            Language.Language.Get(itemDef.nameKey, "UI") + " for player " + item.PlayerId);
+
+                        itemDef.nameKey = newNameKey;
+                    }
+
+                    // Apply all the stored values
+                    ShopItemStats stats = newItemObj.GetComponent<ShopItemStats>();
+                    stats.playerDataBoolName = "MultiWorldMod." + loc;
+                    stats.nameConvo = itemDef.nameKey;
+                    stats.descConvo = itemDef.shopDescKey;
+                    stats.requiredPlayerDataBool = shopDef.requiredPlayerDataBool;
+                    stats.removalPlayerDataBool = string.Empty;
+                    stats.dungDiscount = shopDef.dungDiscount;
+                    stats.notchCostBool = itemDef.notchCost;
+                    stats.cost = 250;
+
+                    // Need to set all these to make sure the item doesn't break in one of various ways
+                    stats.priceConvo = string.Empty;
+                    stats.specialType = 2;
+                    stats.charmsRequired = 0;
+                    stats.relic = false;
+                    stats.relicNumber = 0;
+                    stats.relicPDInt = string.Empty;
+
+                    // Apply the sprite for the UI
+                    stats.transform.Find("Item Sprite").gameObject.GetComponent<SpriteRenderer>().sprite =
+                        _sprites[itemDef.shopSpriteKey ?? "UI.Shop.Geo"];
+
+                    newStock.Add(newItemObj);
+                }
+
+                // Save unchanged list for potential alt stock
+                List<GameObject> altStock = new List<GameObject>();
+                altStock.AddRange(newStock);
+
+                // Update normal stock
+                foreach (GameObject item in shop.stock)
+                {
+                    // It would be cleaner to destroy the unused objects, but that breaks the shop on subsequent loads
+                    // TC must be reusing the shop items rather than destroying them on load
+                    if (item.GetComponent<ShopItemStats>().specialType != 2)
+                    {
+                        newStock.Add(item);
+                    }
+                }
+
+                shop.stock = newStock.ToArray();
+
+                // Update alt stock
+                if (shop.stockAlt != null)
+                {
+                    foreach (GameObject item in shop.stockAlt)
+                    {
+                        if (item.GetComponent<ShopItemStats>().specialType != 2)
+                        {
+                            altStock.Add(item);
+                        }
+                    }
+
+                    shop.stockAlt = altStock.ToArray();
+                }
+            }
+
+            MiscSceneChanges.SceneChanged(to);
         }
 
         private void SetNewGameVars()
@@ -161,6 +317,7 @@ namespace MultiWorldMod
             Object.DestroyImmediate(obj.gameObject);
 
             GameObject shiny = Object.Instantiate(_shinyItem);
+            shiny.name = "Randomizer Shiny";
             shiny.transform.position = pos;
             RemoveFling(shiny);
 
@@ -215,22 +372,11 @@ namespace MultiWorldMod
         private void GetItem(string from, string item)
         {
             Log($"Received item '{item}' from '{from}'");
-            HeroController.instance.StartCoroutine(GiveItem(item));
+            HeroController.instance.StartCoroutine(GiveItem(from, item));
         }
 
-        private IEnumerator GiveItem(string item)
+        private IEnumerator GiveItem(string from, string item)
         {
-            float time = 0;
-            while (time < 0f)
-            {
-                Time.timeScale = 0;
-
-                yield return new WaitForEndOfFrame();
-                time += Time.unscaledDeltaTime;
-            }
-
-            Time.timeScale = 1f;
-
             // Handle additive items
             if (LogicManager.TryGetAdditiveSet(item, out string[] additiveSet))
             {
@@ -259,6 +405,50 @@ namespace MultiWorldMod
                     Ref.PD.SetBool(itemDef.boolName, true);
                 }
             }
+
+            if (from != connection.GetUserName())
+            {
+                HeroTransitionState old = Ref.Hero.transitionState;
+
+                while (true)
+                {
+                    if (old != HeroTransitionState.WAITING_TO_TRANSITION &&
+                        Ref.Hero.transitionState == HeroTransitionState.WAITING_TO_TRANSITION)
+                    {
+                        break;
+                    }
+
+                    old = Ref.Hero.transitionState;
+                    yield return new WaitForEndOfFrame();
+                }
+            }
+
+            yield return ShowPopup($"Received {item} from {from}");
+        }
+
+        private IEnumerator ShowPopup(string text)
+        {
+            // Create overlay
+            GameObject canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceOverlay, new Vector2(1920, 1080));
+            CanvasUtil.CreateImagePanel(canvas, BlackPixel,
+                    new CanvasUtil.RectData(Vector2.zero, Vector2.zero, Vector2.zero, Vector2.one))
+                .GetComponent<Image>()
+                .preserveAspect = false;
+
+            // Create text on overlay
+            CanvasUtil.CreateTextPanel(canvas, text, 34,
+                TextAnchor.MiddleCenter,
+                new CanvasUtil.RectData(new Vector2(1920, 100), Vector2.zero, new Vector2(0.5f, 0.55f),
+                    new Vector2(0.5f, 0.55f)), Fonts.Get("Perpetua"));
+
+            float time = 0;
+            while (time < 2f)
+            {
+                yield return new WaitForEndOfFrame();
+                time += Time.deltaTime;
+            }
+
+            Object.DestroyImmediate(canvas);
         }
 
         // Bool hooks for special cases
@@ -321,8 +511,14 @@ namespace MultiWorldMod
             if (boolName.StartsWith("MultiWorldMod."))
             {
                 boolName = boolName.Substring(14);
-                if (LogicManager.ItemNames.Contains(boolName))
+                if (connection.GetItemAtLocation(boolName, out PlayerItem item))
                 {
+                    if (item.PlayerId != connection.GetPID())
+                    {
+                        HeroController.instance.StartCoroutine(
+                            ShowPopup($"Obtained {item.Item} for player {item.PlayerId}"));
+                    }
+
                     connection.ObtainItem(boolName);
                 }
 
