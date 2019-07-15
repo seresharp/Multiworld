@@ -33,11 +33,17 @@ namespace MultiWorldMod
 
         private List<MWMessage> messageEventQueue = new List<MWMessage>();
 
+        private readonly string _host;
+        private readonly int _port;
+
         public ClientConnection(string host, int port, string Username)
         {
             State = new ConnectionState();
             State.UserName = Username;
             PingTimer = new Timer(DoPing, State, 1000, 1000);
+
+            _host = host;
+            _port = port;
 
             _client = new TcpClient
             {
@@ -45,13 +51,21 @@ namespace MultiWorldMod
                 SendTimeout = 2000
             };
 
-            _client.Connect(host, port);
-            SendMessage(new MWConnectMessage { });
-            MultiWorldMod.Instance.Log("Success!");
+            Reconnect();
             ReadThread = new Thread(new ThreadStart(ReadWorker));
             ReadThread.Start();
 
             ModHooks.Instance.HeroUpdateHook += SynchronizeEvents;
+        }
+
+        private void Reconnect()
+        {
+            if (!_client.Connected)
+            {
+                _client.Connect(_host, _port);
+                SendMessage(new MWConnectMessage { });
+                MultiWorldMod.Instance.Log("Success!");
+            }
         }
 
         private void SynchronizeEvents()
@@ -88,7 +102,9 @@ namespace MultiWorldMod
 
         private void DoPing(object state)
         {
-            if(State.Connected)
+            if (!_client.Connected)
+                Reconnect();
+            if (State.Connected)
             {
                 SendMessage(new MWPingMessage());
                 //If there are items in the queue that the server hasn't confirmed yet
@@ -218,9 +234,21 @@ namespace MultiWorldMod
 
         private void HandleJoinConfirm(MWJoinConfirmMessage message)
         {
-            State.Token = message.Token;
-            State.Joined = true;
-            State.GameInfo = new GameInformation(message.PlayerId);
+            //Token is empty token if we connected for the first time
+            if (State.Token == "")
+            {
+                State.Token = message.Token;
+                State.Joined = true;
+                MultiWorldMod.Instance.Log("Joined");
+                State.GameInfo = new GameInformation(message.PlayerId);
+            }
+            else
+            {
+                State.Token = message.Token;
+                State.Joined = true;
+                MultiWorldMod.Instance.Log("Rejoined");
+                SendMessage(new MWItemConfigurationRequestMessage());
+            }
         }
 
         private void HandleItemConfiguration(MWItemConfigurationMessage message)
