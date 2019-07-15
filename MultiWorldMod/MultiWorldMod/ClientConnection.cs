@@ -1,17 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using MultiWorldProtocol.Binary;
 using MultiWorldProtocol.Messaging;
-using System.Diagnostics;
-using System.IO;
-using System.Net.Mime;
 using MultiWorldProtocol.Messaging.Definitions.Messages;
 using System.Net.Sockets;
 using System.Threading;
 using Modding;
-using UnityEngine;
 
 namespace MultiWorldMod
 {
@@ -92,7 +86,7 @@ namespace MultiWorldMod
                     MessageReceived?.Invoke(notify.From, notify.Message);
                     break;
                 case MWItemReceiveMessage item:
-                    ItemReceived?.Invoke(item.From, item.Item);
+                    GiveItem(item.From, item.Item);
                     break;
                 default:
                     MultiWorldMod.Instance.Log("Unknown type in message queue: " + message.MessageType);
@@ -284,8 +278,6 @@ namespace MultiWorldMod
                 messageEventQueue.Add(message);
             }
 
-            GiveItem(message.From, message.Item);
-
             //Do whatever we want to do when we get an item here, then confirm
             SendMessage(new MWItemReceiveConfirmMessage { Item = message.Item, From = message.From });
         }
@@ -300,9 +292,9 @@ namespace MultiWorldMod
             SendMessage(new MWNotifyMessage { Message = message, To = "All", From = State.UserName });
         }
 
-        public void SendItem(string item, uint playerId)
+        public void SendItem(string loc, string item, uint playerId)
         {
-            ItemSendQueue.Add(new MWItemSendMessage { Item = item, To = playerId });
+            ItemSendQueue.Add(new MWItemSendMessage { Location = loc, Item = item, To = playerId });
         }
 
         public bool GetItemAtLocation(string loc, out PlayerItem item)
@@ -334,7 +326,7 @@ namespace MultiWorldMod
             if (item.PlayerId != State.GameInfo.PlayerID)
             {
                 MultiWorldMod.Instance.Log("Giving item " + item.Item + " to player " + item.PlayerId);
-                SendItem(item.Item, item.PlayerId);
+                SendItem(loc, item.Item, item.PlayerId);
                 return;
             }
 
