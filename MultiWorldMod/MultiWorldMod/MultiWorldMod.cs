@@ -166,6 +166,7 @@ namespace MultiWorldMod
                 GameObject shopObj = to.FindGameObject(shopDef.objectName);
                 ShopMenuStock shop = shopObj.GetComponent<ShopMenuStock>();
                 GameObject itemPrefab = Object.Instantiate(shop.stock[0]);
+                itemPrefab.AddComponent<MultiWorldShopItem>();
                 itemPrefab.SetActive(false);
 
                 List<GameObject> newStock = new List<GameObject>();
@@ -228,7 +229,7 @@ namespace MultiWorldMod
                 {
                     // It would be cleaner to destroy the unused objects, but that breaks the shop on subsequent loads
                     // TC must be reusing the shop items rather than destroying them on load
-                    if (item.GetComponent<ShopItemStats>().specialType != 2)
+                    if (item.GetComponent<ShopItemStats>().specialType != 2 || item.GetComponent<MultiWorldShopItem>())
                     {
                         newStock.Add(item);
                     }
