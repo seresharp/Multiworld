@@ -9,23 +9,47 @@ namespace MultiWorldServer
 
         private static void Main()
         {
+            ServerSettings settings = new ServerSettings();
+
             Console.WriteLine("Enter number of players");
-            int players = int.Parse(Console.ReadLine());
+            settings.Players = int.Parse(Console.ReadLine());
             Console.WriteLine("Enter seed (Leave blank for random)");
             string seedStr = Console.ReadLine();
-            int seed;
             if (string.IsNullOrEmpty(seedStr))
             {
-                seed = new Random().Next();
+                settings.Seed = new Random().Next();
             }
-            else if (!int.TryParse(seedStr, out seed))
+            else if (!int.TryParse(seedStr, out settings.Seed))
             {
-                seed = seedStr.GetHashCode();
+                settings.Seed = seedStr.GetHashCode();
             }
 
-            Console.WriteLine("Seed number is " + seed);
+            Console.WriteLine("Seed number is " + settings.Seed);
 
-            Serv = new Server(38281, new ServerSettings {Seed = seed, Players = players});
+            Console.WriteLine("Shade skips? Y/N");
+            settings.ShadeSkips = ParseYN();
+            Console.WriteLine("Acid Skips? Y/N");
+            settings.AcidSkips = ParseYN();
+            Console.WriteLine("Spike Tunnels? Y/N");
+            settings.SpikeTunnels = ParseYN();
+            Console.WriteLine("Misc Skips? Y/N");
+            settings.MiscSkips = ParseYN();
+            Console.WriteLine("Fireball Skips? Y/N");
+            settings.FireballSkips = ParseYN();
+
+            Serv = new Server(38281, settings);
+        }
+
+        private static bool ParseYN()
+        {
+            string yn = Console.ReadLine();
+
+            if (string.IsNullOrEmpty(yn))
+            {
+                return false;
+            }
+
+            return yn[0] == 'Y' || yn[0] == 'y';
         }
     }
 }
