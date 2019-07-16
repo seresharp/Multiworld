@@ -8,7 +8,7 @@ This Mod allows multiple people to cooperatively play a randomizer in Hollow Kni
 4. Start the game so that the config file will be generated
 5. Edit the MultiWorldMod.GlobalSettings.json file in "AppData\LocalLow\Team Cherry\Hollow Knight" to point to the servers IP address
 6. Run the MultiworldServer.exe and potentially forward the 38281 port to allows others to connect to you.
-7. Wait until everyone is connected and then start playing.
+7. Wait until everyone is connected and then start playing on a clear save file.
 
 # Notes
 The server should be able to handle disconnects as long as the Game hasn't crashed. If a players game crashes you might have to restart. We'll hopefully fix this later.
