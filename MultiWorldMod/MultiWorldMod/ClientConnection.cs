@@ -11,6 +11,8 @@ namespace MultiWorldMod
 {
     public class ClientConnection
     {
+        private const int PING_INTERVAL = 10000;
+
         private readonly MWMessagePacker Packer = new MWMessagePacker(new BinaryMWMessageEncoder());
         private TcpClient _client;
         private readonly Timer PingTimer;
@@ -34,29 +36,39 @@ namespace MultiWorldMod
         {
             State = new ConnectionState();
             State.UserName = Username;
-            PingTimer = new Timer(DoPing, State, 1000, 1000);
+            PingTimer = new Timer(DoPing, State, 1000, PING_INTERVAL);
 
             _host = host;
             _port = port;
 
-            _client = new TcpClient
-            {
-                ReceiveTimeout = 2000,
-                SendTimeout = 2000
-            };
-
             Reconnect();
-            ReadThread = new Thread(new ThreadStart(ReadWorker));
-            ReadThread.Start();
 
             ModHooks.Instance.HeroUpdateHook += SynchronizeEvents;
         }
 
         private void Reconnect()
         {
-            if (!_client.Connected)
+            if (_client == null || !_client.Connected)
             {
+                State.Uid = 0;
+                State.LastPing = DateTime.Now;
+
+                _client = new TcpClient
+                {
+                    ReceiveTimeout = 2000,
+                    SendTimeout = 2000
+                };
+
                 _client.Connect(_host, _port);
+
+                if (ReadThread != null && ReadThread.IsAlive)
+                {
+                    ReadThread.Abort();
+                }
+
+                ReadThread = new Thread(ReadWorker);
+                ReadThread.Start();
+
                 SendMessage(new MWConnectMessage { });
                 MultiWorldMod.Instance.Log("Success!");
             }
@@ -96,15 +108,33 @@ namespace MultiWorldMod
 
         private void DoPing(object state)
         {
-            if (!_client.Connected)
+            if (_client == null || !_client.Connected)
                 Reconnect();
             if (State.Connected)
             {
-                SendMessage(new MWPingMessage());
-                //If there are items in the queue that the server hasn't confirmed yet
-                if(ItemSendQueue.Count>0 && State.Joined)
+                if (DateTime.Now - State.LastPing > TimeSpan.FromMilliseconds(PING_INTERVAL * 3.5))
                 {
-                    ResendItemQueue();
+                    try
+                    {
+                        byte[] buf = Packer.Pack(new MWDisconnectMessage {SenderUid = State.Uid}).Buffer;
+                        _client.GetStream().Write(buf, 0, buf.Length);
+                        _client.Close();
+                    }
+                    finally
+                    {
+                        State.Connected = false;
+                        _client = null;
+                        Reconnect();
+                    }
+                }
+                else
+                {
+                    SendMessage(new MWPingMessage());
+                    //If there are items in the queue that the server hasn't confirmed yet
+                    if (ItemSendQueue.Count > 0 && State.Joined)
+                    {
+                        ResendItemQueue();
+                    }
                 }
             }
         }
@@ -194,6 +224,7 @@ namespace MultiWorldMod
                     HandleNotify((MWNotifyMessage)message);
                     break;
                 case MWMessageType.PingMessage:
+                    State.LastPing = DateTime.Now;
                     break;
                 case MWMessageType.InvalidMessage:
                 default:
@@ -223,7 +254,7 @@ namespace MultiWorldMod
         {
             State.Uid = message.SenderUid;
             State.Connected = true;
-            SendMessage(new MWJoinMessage { DisplayName = State.UserName, Token = "" });
+            SendMessage(new MWJoinMessage { DisplayName = State.UserName, Token = State.Token ?? "" });
         }
 
         private void HandleJoinConfirm(MWJoinConfirmMessage message)

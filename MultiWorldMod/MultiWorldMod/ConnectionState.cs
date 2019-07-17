@@ -16,5 +16,6 @@ namespace MultiWorldMod
         public bool Connected;
         public bool Joined;
         public bool FullWorldInformation;
+        public DateTime LastPing = DateTime.Now;
     }
 }
