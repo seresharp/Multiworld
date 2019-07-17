@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.Eventing.Reader;
+using System.Threading;
 
 namespace MultiWorldServer
 {
@@ -38,6 +39,8 @@ namespace MultiWorldServer
             settings.FireballSkips = ParseYN();
 
             Serv = new Server(38281, settings);
+            while (Serv.Running)
+                Thread.Sleep(1000);
         }
 
         private static bool ParseYN()
