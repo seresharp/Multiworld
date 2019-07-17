@@ -1,6 +1,8 @@
 # Multiworld Randomizer
 This Mod allows multiple people to cooperatively play a randomizer in Hollow Knight with items scattered across multiple worlds connected over the network.
 
+***If you run into any bugs or crashes please submit an Issue in this github repository, ideally appending the log of the mod and the output of the server or at least the seed used***
+
 # Install
 1. Download the latest archive from Releases
 2. Install the Modding API into Hollow Knight using https://radiance.host/mods/ModInstaller.exe
@@ -11,4 +13,5 @@ This Mod allows multiple people to cooperatively play a randomizer in Hollow Kni
 7. Wait until everyone is connected and then start playing on a clear save file.
 
 # Notes
-The server should be able to handle disconnects as long as the Game hasn't crashed. If a players game crashes you might have to restart. We'll hopefully fix this later.
+* If you see weird behaviour in your client please restart your game and use the "Reconnect (old token)" button.
+* If your game crashes or the connection drops you should be able to reconnect the same way.
