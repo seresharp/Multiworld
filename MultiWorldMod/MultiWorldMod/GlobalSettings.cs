@@ -21,5 +21,11 @@ namespace MultiWorldMod
             get => GetString("Lazy_Person");
             set => SetString(value);
         }
+
+        public string Token
+        {
+            get => GetString("");
+            set => SetString(value);
+        }
     }
 }

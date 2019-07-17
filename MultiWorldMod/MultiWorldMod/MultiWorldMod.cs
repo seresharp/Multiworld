@@ -92,11 +92,28 @@ namespace MultiWorldMod
 
             connection.ItemReceived += GetItem;
             connection.MessageReceived += LogMessage;
+
+            // Create object for UI
+            GameObject obj = new GameObject();
+            obj.AddComponent<MultiworldUI>();
+            Object.DontDestroyOnLoad(obj);
         }
 
         public override string GetVersion()
         {
-            return "0.0.2";
+            return "0.0.3";
+        }
+
+        public void Connect(bool useOldToken)
+        {
+            if (useOldToken)
+            {
+                connection.Connect(Config.Token);
+            }
+            else
+            {
+                connection.Connect();
+            }
         }
 
         private void AddLanguageOverride(string key, string sheetTitle, string lang)

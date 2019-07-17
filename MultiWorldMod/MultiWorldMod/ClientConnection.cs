@@ -15,7 +15,7 @@ namespace MultiWorldMod
 
         private readonly MWMessagePacker Packer = new MWMessagePacker(new BinaryMWMessageEncoder());
         private TcpClient _client;
-        private readonly Timer PingTimer;
+        private Timer PingTimer;
         private ConnectionState State;
         private List<MWItemSendMessage> ItemSendQueue = new List<MWItemSendMessage>();
         private Thread ReadThread;
@@ -36,41 +36,75 @@ namespace MultiWorldMod
         {
             State = new ConnectionState();
             State.UserName = Username;
-            PingTimer = new Timer(DoPing, State, 1000, PING_INTERVAL);
 
             _host = host;
             _port = port;
 
-            Reconnect();
-
             ModHooks.Instance.HeroUpdateHook += SynchronizeEvents;
+        }
+
+        public void Connect(string token = "")
+        {
+            State.Token = token;
+
+            if (_client != null && _client.Connected)
+            {
+                Disconnect();
+            }
+
+            Reconnect();
         }
 
         private void Reconnect()
         {
-            if (_client == null || !_client.Connected)
+            if (_client != null && _client.Connected)
             {
-                State.Uid = 0;
-                State.LastPing = DateTime.Now;
+                return;
+            }
 
-                _client = new TcpClient
-                {
-                    ReceiveTimeout = 2000,
-                    SendTimeout = 2000
-                };
+            State.Uid = 0;
+            State.LastPing = DateTime.Now;
 
-                _client.Connect(_host, _port);
+            _client = new TcpClient
+            {
+                ReceiveTimeout = 2000,
+                SendTimeout = 2000
+            };
 
-                if (ReadThread != null && ReadThread.IsAlive)
-                {
-                    ReadThread.Abort();
-                }
+            _client.Connect(_host, _port);
 
-                ReadThread = new Thread(ReadWorker);
-                ReadThread.Start();
+            if (ReadThread != null && ReadThread.IsAlive)
+            {
+                ReadThread.Abort();
+            }
 
-                SendMessage(new MWConnectMessage { });
-                MultiWorldMod.Instance.Log("Success!");
+            PingTimer = new Timer(DoPing, State, 1000, PING_INTERVAL);
+
+            ReadThread = new Thread(ReadWorker);
+            ReadThread.Start();
+
+            SendMessage(new MWConnectMessage());
+            MultiWorldMod.Instance.Log("Connected to server!");
+        }
+
+        private void Disconnect()
+        {
+            PingTimer?.Dispose();
+
+            try
+            {
+                byte[] buf = Packer.Pack(new MWDisconnectMessage {SenderUid = State.Uid}).Buffer;
+                _client.GetStream().Write(buf, 0, buf.Length);
+                _client.Close();
+            }
+            catch (Exception e)
+            {
+                MultiWorldMod.Instance.Log("Error disconnection:\n" + e);
+            }
+            finally
+            {
+                State.Connected = false;
+                _client = null;
             }
         }
 
@@ -114,18 +148,10 @@ namespace MultiWorldMod
             {
                 if (DateTime.Now - State.LastPing > TimeSpan.FromMilliseconds(PING_INTERVAL * 3.5))
                 {
-                    try
-                    {
-                        byte[] buf = Packer.Pack(new MWDisconnectMessage {SenderUid = State.Uid}).Buffer;
-                        _client.GetStream().Write(buf, 0, buf.Length);
-                        _client.Close();
-                    }
-                    finally
-                    {
-                        State.Connected = false;
-                        _client = null;
-                        Reconnect();
-                    }
+                    MultiWorldMod.Instance.Log("Connection timed out");
+
+                    Disconnect();
+                    Reconnect();
                 }
                 else
                 {
@@ -263,6 +289,7 @@ namespace MultiWorldMod
             if (string.IsNullOrEmpty(State.Token))
             {
                 State.Token = message.Token;
+                MultiWorldMod.Instance.Config.Token = message.Token;
                 State.Joined = true;
                 MultiWorldMod.Instance.Log("Joined");
                 State.GameInfo = new GameInformation(message.PlayerId);
@@ -270,6 +297,7 @@ namespace MultiWorldMod
             else
             {
                 State.Token = message.Token;
+                MultiWorldMod.Instance.Config.Token = message.Token;
                 State.Joined = true;
                 MultiWorldMod.Instance.Log("Rejoined");
                 SendMessage(new MWItemConfigurationRequestMessage());
