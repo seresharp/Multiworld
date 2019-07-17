@@ -48,7 +48,12 @@ namespace MultiWorldServer
             PingTimer = new Timer(DoPing, Clients, 1000, PingInterval);
             ResendTimer = new Timer(DoResends, Clients, 500, 1000);
             Running = true;
-            Console.WriteLine("Server started!");
+            Log("Server started!");
+        }
+
+        private void Log(string message)
+        {
+            Console.WriteLine(string.Format("[{0}] {1}", DateTime.Now.ToShortTimeString(), message));
         }
 
         private void DoPing(object clients)
@@ -62,7 +67,10 @@ namespace MultiWorldServer
                     Client client = clientList[i];
                     //If a client has missed 3 pings we disconnect them
                     if (Now - client.lastPing > TimeSpan.FromMilliseconds(PingInterval * 3.5))
+                    {
+                        Log(string.Format("Client {0} timed out. ({1})", client.UID, client.Session?.Name));
                         DisconnectClient(client);
+                    }
                     else
                         SendMessage(new MWPingMessage(), client);
                 }
@@ -199,7 +207,7 @@ namespace MultiWorldServer
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Failed to send message to '{client.Session?.Name}':\n{e}\nDisconnecting");
+                Log($"Failed to send message to '{client.Session?.Name}':\n{e}\nDisconnecting");
                 DisconnectClient(client);
                 return false;
             }
@@ -226,6 +234,7 @@ namespace MultiWorldServer
 
         private void DisconnectClient(Client client)
         {
+            Log(string.Format("Disconnecting {0}", client.UID));
             try
             {
                 //Remove first from lists so if we get a network exception at least on the server side stuff should be clean
@@ -254,7 +263,7 @@ namespace MultiWorldServer
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Log(e.ToString());
                 return;
             }
 
@@ -364,7 +373,7 @@ namespace MultiWorldServer
                     Sessions.Add(sender.Session.Token, sender.Session);
                     sender.FullyConnected = true;
 
-                    Console.WriteLine($"{message.DisplayName} has token {sender.Session.Token}");
+                    Log($"{message.DisplayName} has token {sender.Session.Token}");
                     SendMessage(new MWJoinConfirmMessage { Token = sender.Session.Token, DisplayName = sender.Session.Name, PlayerId = sender.Session.PID }, sender);
                 }
                 else
@@ -400,7 +409,7 @@ namespace MultiWorldServer
 
         private void HandleNotify(Client sender, MWNotifyMessage message)
         {
-            Console.WriteLine($"[{sender.Session?.Name}]: {message.Message}");
+            Log($"[{sender.Session?.Name}]: {message.Message}");
         }
 
 
@@ -436,7 +445,7 @@ namespace MultiWorldServer
                 {
                     if (c.Session.PID == player)
                     {
-                        Console.WriteLine($"Sending item '{Item}' to '{c.Session.Name}', from '{From}'");
+                        Log($"Sending item '{Item}' to '{c.Session.Name}', from '{From}'");
 
                         c.Session.QueueConfirmableMessage(new MWItemReceiveMessage { From = From, Item = Item });
                         return;
