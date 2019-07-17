@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.Eventing.Reader;
+using System.Threading;
 
 namespace MultiWorldServer
 {
@@ -26,6 +27,11 @@ namespace MultiWorldServer
             Console.WriteLine("Seed number is " + seed);
 
             Serv = new Server(38281, new ServerSettings {Seed = seed, Players = players});
+
+            while(Serv.Running)
+            {
+                Thread.Sleep(1000);
+            }
         }
     }
 }

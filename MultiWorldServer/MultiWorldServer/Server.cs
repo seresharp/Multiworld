@@ -30,6 +30,8 @@ namespace MultiWorldServer
         private readonly ServerSettings _settings;
         private Dictionary<string, (int, string)>[] _itemPlacements;
 
+        public bool Running { get; private set; }
+
         public Server(int port, ServerSettings settings)
         {
             _settings = settings;
@@ -42,9 +44,9 @@ namespace MultiWorldServer
             //_readThread = new Thread(ReadWorker);
             //_readThread.Start();
             _server.BeginAcceptTcpClient(AcceptClient, _server);
-            PingTimer = new Timer(DoPing, Clients, 1000, 1000);
+            PingTimer = new Timer(DoPing, Clients, 1000, 10000);
             ResendTimer = new Timer(DoResends, Clients, 500, 1000);
-
+            Running = true;
             Console.WriteLine("Server started!");
         }
 
@@ -161,6 +163,7 @@ namespace MultiWorldServer
 
             client.TcpClient.ReceiveTimeout = 2000;
             client.TcpClient.SendTimeout = 2000;
+            client.lastPing = DateTime.Now;
 
             StartReadThread(client);
 
@@ -179,16 +182,18 @@ namespace MultiWorldServer
 
             try
             {
-                client.SendMutex.WaitOne();
+                //Monitor.Enter(client.SendLock);
                 byte[] bytes = Packer.Pack(message).Buffer;
 
                 NetworkStream stream = client.TcpClient.GetStream();
-                stream.BeginWrite(bytes, 0, bytes.Length, WriteToClient, client);
+                stream.Write(bytes, 0, bytes.Length);
+                //stream.BeginWrite(bytes, 0, bytes.Length, WriteToClient, client);
                 return true;
             }
             catch (Exception e)
             {
                 Console.WriteLine($"Failed to send message to '{client.Session?.Name}':\n{e}\nDisconnecting");
+                //Monitor.Exit(client.SendLock);
                 DisconnectClient(client);
                 return false;
             }
@@ -196,7 +201,7 @@ namespace MultiWorldServer
 
         private static void WriteToClient(IAsyncResult res)
         {
-            Client c = res as Client;
+            Client c = res.AsyncState as Client;
             if (c == null)
                 throw new InvalidOperationException("How the fuck was this ever called with a null state object?");
             try
@@ -209,7 +214,7 @@ namespace MultiWorldServer
             }
             finally
             {
-                c.SendMutex.ReleaseMutex();
+                Monitor.Exit(c.SendLock);
             }
         }
 
