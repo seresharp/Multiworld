@@ -39,8 +39,8 @@ namespace MultiWorldServer
             _server = new TcpListener(IPAddress.Parse("0.0.0.0"), port);
             _server.Start();
 
-            _readThread = new Thread(ReadWorker);
-            _readThread.Start();
+            //_readThread = new Thread(ReadWorker);
+            //_readThread.Start();
             _server.BeginAcceptTcpClient(AcceptClient, _server);
             PingTimer = new Timer(DoPing, Clients, 1000, 1000);
             ResendTimer = new Timer(DoResends, Clients, 500, 1000);
@@ -87,6 +87,7 @@ namespace MultiWorldServer
             }
         }
 
+        /*
         private void ReadWorker()
         {
             //Allocating outside of the loop to not reallocate every time
@@ -113,6 +114,35 @@ namespace MultiWorldServer
 
                 Thread.Sleep(10);
             }
+        }*/
+
+        private void StartReadThread(Client c)
+        {
+            //Check that we aren't already reading
+            if (c.ReadWorker != null)
+                return;
+            var start = new ParameterizedThreadStart(ReadWorker);
+            c.ReadWorker = new Thread(start);
+            c.ReadWorker.Start(c);
+        }
+
+        private void ReadWorker(object boxedClient)
+        {
+            Client client = boxedClient as Client;
+            NetworkStream stream = client.TcpClient.GetStream();
+            try
+            {
+                while (client.TcpClient.Connected)
+                {
+                    MWPackedMessage message = new MWPackedMessage(stream);
+                    ReadFromClient(client, message);
+                    Thread.Sleep(10);
+                }
+            }
+            catch(Exception e)
+            {
+                DisconnectClient(client);
+            }
         }
 
         private void AcceptClient(IAsyncResult res)
@@ -132,6 +162,8 @@ namespace MultiWorldServer
             client.TcpClient.ReceiveTimeout = 2000;
             client.TcpClient.SendTimeout = 2000;
 
+            StartReadThread(client);
+
             lock (_clientLock)
             {
                 Unidentified.Add(client);
@@ -147,10 +179,11 @@ namespace MultiWorldServer
 
             try
             {
+                client.SendMutex.WaitOne();
                 byte[] bytes = Packer.Pack(message).Buffer;
 
                 NetworkStream stream = client.TcpClient.GetStream();
-                stream.BeginWrite(bytes, 0, bytes.Length, WriteToClient, stream);
+                stream.BeginWrite(bytes, 0, bytes.Length, WriteToClient, client);
                 return true;
             }
             catch (Exception e)
@@ -163,24 +196,42 @@ namespace MultiWorldServer
 
         private static void WriteToClient(IAsyncResult res)
         {
+            Client c = res as Client;
+            if (c == null)
+                throw new InvalidOperationException("How the fuck was this ever called with a null state object?");
             try
             {
-                NetworkStream stream = (NetworkStream)res.AsyncState;
+                NetworkStream stream = (NetworkStream)c.TcpClient.GetStream();
                 stream.EndWrite(res);
             }
             catch (Exception e)
             {
             }
+            finally
+            {
+                c.SendMutex.ReleaseMutex();
+            }
         }
 
         private void DisconnectClient(Client client)
         {
-            SendMessage(new MWDisconnectMessage(), client);
-            //Wait a bit to give the message a chance to be sent at least before closing the client
-            Thread.Sleep(10);
-            client.TcpClient.Close();
-            lock (_clientLock)
-                Clients.Remove(client.UID);
+            try
+            {
+                //Remove first from lists so if we get a network exception at least on the server side stuff should be clean
+                lock (_clientLock)
+                {
+                    Clients.Remove(client.UID);
+                    Unidentified.Remove(client);
+                }
+                SendMessage(new MWDisconnectMessage(), client);
+                //Wait a bit to give the message a chance to be sent at least before closing the client
+                Thread.Sleep(10);
+                client.TcpClient.Close();
+            }
+            catch(Exception e)
+            {
+                //Do nothing, we're already disconnecting
+            }
         }
 
         private void ReadFromClient(Client sender, MWPackedMessage packed)
