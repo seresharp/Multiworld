@@ -155,7 +155,6 @@ namespace MultiWorldServer
                 {
                     MWPackedMessage message = new MWPackedMessage(stream);
                     ReadFromClient(client, message);
-                    Thread.Sleep(10);
                 }
             }
             catch(Exception e)
@@ -200,11 +199,11 @@ namespace MultiWorldServer
 
             try
             {
-                
                 byte[] bytes = Packer.Pack(message).Buffer;
                 lock (client.TcpClient)
                 {
                     NetworkStream stream = client.TcpClient.GetStream();
+                    stream.WriteTimeout = 2;
                     stream.Write(bytes, 0, bytes.Length);
                 }
                 return true;
@@ -466,8 +465,10 @@ namespace MultiWorldServer
 
         private void HandleItemConfigurationRequest(Client sender, MWItemConfigurationRequestMessage msg)
         {
+            Log("Got config request");
             if (sender.FullyConnected && sender.Session != null)
             {
+                Log("Responding");
                 foreach (string loc in _itemPlacements[sender.Session.PID].Keys)
                 {
                     (int player, string item) = _itemPlacements[sender.Session.PID][loc];
