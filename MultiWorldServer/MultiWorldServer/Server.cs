@@ -13,6 +13,8 @@ namespace MultiWorldServer
 {
     class Server
     {
+        const int PingInterval = 10000; //In milliseconds
+
         private ulong nextUID = 1;
         private ushort nextPID = 0;
         private readonly MWMessagePacker Packer = new MWMessagePacker(new BinaryMWMessageEncoder());
@@ -24,11 +26,12 @@ namespace MultiWorldServer
         private readonly Dictionary<ulong, Client> Clients = new Dictionary<ulong, Client>();
         private readonly Dictionary<string, Session> Sessions = new Dictionary<string, Session>();
         private TcpListener _server;
-        private readonly Thread _readThread;
         private readonly Timer ResendTimer;
 
         private readonly ServerSettings _settings;
         private Dictionary<string, (int, string)>[] _itemPlacements;
+
+        public bool Running { get; private set; }
 
         public Server(int port, ServerSettings settings)
         {
@@ -39,24 +42,37 @@ namespace MultiWorldServer
             _server = new TcpListener(IPAddress.Parse("0.0.0.0"), port);
             _server.Start();
 
-            _readThread = new Thread(ReadWorker);
-            _readThread.Start();
+            //_readThread = new Thread(ReadWorker);
+            //_readThread.Start();
             _server.BeginAcceptTcpClient(AcceptClient, _server);
-            PingTimer = new Timer(DoPing, Clients, 1000, 1000);
+            PingTimer = new Timer(DoPing, Clients, 1000, PingInterval);
             ResendTimer = new Timer(DoResends, Clients, 500, 1000);
+            Running = true;
+            Log("Server started!");
+        }
 
-            Console.WriteLine("Server started!");
+        private void Log(string message)
+        {
+            Console.WriteLine(string.Format("[{0}] {1}", DateTime.Now.ToShortTimeString(), message));
         }
 
         private void DoPing(object clients)
         {
             lock (_clientLock)
             {
+                var Now = DateTime.Now;
                 List<Client> clientList = Clients.Values.ToList();
                 for (int i = clientList.Count - 1; i >= 0; i--)
                 {
                     Client client = clientList[i];
-                    SendMessage(new MWPingMessage(), client);
+                    //If a client has missed 3 pings we disconnect them
+                    if (Now - client.lastPing > TimeSpan.FromMilliseconds(PingInterval * 3.5))
+                    {
+                        Log(string.Format("Client {0} timed out. ({1})", client.UID, client.Session?.Name));
+                        DisconnectClient(client);
+                    }
+                    else
+                        SendMessage(new MWPingMessage(), client);
                 }
             }
         }
@@ -65,15 +81,18 @@ namespace MultiWorldServer
         {
             lock (_clientLock)
             {
-                foreach (Client client in Clients.Values)
+                var ClientList = Clients.Values.ToList();
+                for (int i = ClientList.Count - 1; i>= 0; i--)
                 {
+                    var client = ClientList[i];
                     if(client.Session!= null)
                     {
                         lock (client.Session.MessagesToConfirm)
                         {
                             var now = DateTime.Now;
-                            foreach (ResendEntry entry in client.Session.MessagesToConfirm)
+                            for (int j = client.Session.MessagesToConfirm.Count - 1; j >= 0; j--)
                             {
+                                var entry = client.Session.MessagesToConfirm[j];
                                 if (now - entry.LastSent > TimeSpan.FromSeconds(5))
                                 {
                                     var msg = entry.Message;
@@ -87,6 +106,7 @@ namespace MultiWorldServer
             }
         }
 
+        /*
         private void ReadWorker()
         {
             //Allocating outside of the loop to not reallocate every time
@@ -113,6 +133,35 @@ namespace MultiWorldServer
 
                 Thread.Sleep(10);
             }
+        }*/
+
+        private void StartReadThread(Client c)
+        {
+            //Check that we aren't already reading
+            if (c.ReadWorker != null)
+                return;
+            var start = new ParameterizedThreadStart(ReadWorker);
+            c.ReadWorker = new Thread(start);
+            c.ReadWorker.Start(c);
+        }
+
+        private void ReadWorker(object boxedClient)
+        {
+            Client client = boxedClient as Client;
+            NetworkStream stream = client.TcpClient.GetStream();
+            try
+            {
+                while (client.TcpClient.Connected)
+                {
+                    MWPackedMessage message = new MWPackedMessage(stream);
+                    ReadFromClient(client, message);
+                    Thread.Sleep(10);
+                }
+            }
+            catch(Exception e)
+            {
+                DisconnectClient(client);
+            }
         }
 
         private void AcceptClient(IAsyncResult res)
@@ -131,31 +180,38 @@ namespace MultiWorldServer
 
             client.TcpClient.ReceiveTimeout = 2000;
             client.TcpClient.SendTimeout = 2000;
+            client.lastPing = DateTime.Now;
 
             lock (_clientLock)
             {
                 Unidentified.Add(client);
             }
+
+            StartReadThread(client);
         }
 
         private bool SendMessage(MWMessage message, Client client)
         {
             if (client?.TcpClient == null || !client.TcpClient.Connected)
             {
+                //Log("Returning early due to client not connected");
                 return false;
             }
 
             try
             {
+                
                 byte[] bytes = Packer.Pack(message).Buffer;
-
-                NetworkStream stream = client.TcpClient.GetStream();
-                stream.BeginWrite(bytes, 0, bytes.Length, WriteToClient, stream);
+                lock (client.TcpClient)
+                {
+                    NetworkStream stream = client.TcpClient.GetStream();
+                    stream.Write(bytes, 0, bytes.Length);
+                }
                 return true;
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Failed to send message to '{client.Session?.Name}':\n{e}\nDisconnecting");
+                Log($"Failed to send message to '{client.Session?.Name}':\n{e}\nDisconnecting");
                 DisconnectClient(client);
                 return false;
             }
@@ -163,24 +219,43 @@ namespace MultiWorldServer
 
         private static void WriteToClient(IAsyncResult res)
         {
+            Client c = res.AsyncState as Client;
+            if (c == null)
+                throw new InvalidOperationException("How the fuck was this ever called with a null state object?");
             try
             {
-                NetworkStream stream = (NetworkStream)res.AsyncState;
+                NetworkStream stream = (NetworkStream)c.TcpClient.GetStream();
                 stream.EndWrite(res);
             }
             catch (Exception e)
             {
             }
+            finally
+            {
+                Monitor.Exit(c.SendLock);
+            }
         }
 
         private void DisconnectClient(Client client)
         {
-            SendMessage(new MWDisconnectMessage(), client);
-            //Wait a bit to give the message a chance to be sent at least before closing the client
-            Thread.Sleep(10);
-            client.TcpClient.Close();
-            lock (_clientLock)
-                Clients.Remove(client.UID);
+            Log(string.Format("Disconnecting {0}", client.UID));
+            try
+            {
+                //Remove first from lists so if we get a network exception at least on the server side stuff should be clean
+                lock (_clientLock)
+                {
+                    Clients.Remove(client.UID);
+                    Unidentified.Remove(client);
+                }
+                SendMessage(new MWDisconnectMessage(), client);
+                //Wait a bit to give the message a chance to be sent at least before closing the client
+                Thread.Sleep(10);
+                client.TcpClient.Close();
+            }
+            catch(Exception e)
+            {
+                //Do nothing, we're already disconnecting
+            }
         }
 
         private void ReadFromClient(Client sender, MWPackedMessage packed)
@@ -192,7 +267,7 @@ namespace MultiWorldServer
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Log(e.ToString());
                 return;
             }
 
@@ -234,6 +309,7 @@ namespace MultiWorldServer
                     HandleNotify(sender, (MWNotifyMessage)message);
                     break;
                 case MWMessageType.PingMessage:
+                    HandlePing(sender, (MWPingMessage)message);
                     break;
                 case MWMessageType.ItemConfigurationRequestMessage:
                     HandleItemConfigurationRequest(sender, (MWItemConfigurationRequestMessage)message);
@@ -246,6 +322,7 @@ namespace MultiWorldServer
 
         private void HandleConnect(Client sender, MWConnectMessage message)
         {
+            //Log(string.Format("Seeing connection with UID={0}", message.SenderUid));
             lock (_clientLock)
             {
                 if (Unidentified.Contains(sender))
@@ -253,7 +330,9 @@ namespace MultiWorldServer
                     if (message.SenderUid == 0)
                     {
                         sender.UID = nextUID++;
+                        //Log(string.Format("Assigned UID={0}", sender.UID));
                         SendMessage(new MWConnectMessage {SenderUid = sender.UID}, sender);
+                        //Log("Connect sent!");
                         Clients.Add(sender.UID, sender);
                         Unidentified.Remove(sender);
                     }
@@ -271,6 +350,11 @@ namespace MultiWorldServer
             DisconnectClient(sender);
         }
 
+        private void HandlePing(Client sender, MWPingMessage message)
+        {
+            sender.lastPing = DateTime.Now;
+        }
+
         private void HandleJoin(Client sender, MWJoinMessage message)
         {
             lock (_clientLock)
@@ -282,7 +366,7 @@ namespace MultiWorldServer
 
                 if (string.IsNullOrEmpty(message.Token))
                 {
-                    if (Clients.Count(client => client.Value.FullyConnected) >= _settings.Players)
+                    if (nextPID > _settings.Players)
                     {
                         sender.TcpClient.Close();
                         return;
@@ -296,11 +380,12 @@ namespace MultiWorldServer
                     Sessions.Add(sender.Session.Token, sender.Session);
                     sender.FullyConnected = true;
 
-                    Console.WriteLine($"{message.DisplayName} has token {sender.Session.Token}");
+                    Log($"{message.DisplayName} has token {sender.Session.Token}");
                     SendMessage(new MWJoinConfirmMessage { Token = sender.Session.Token, DisplayName = sender.Session.Name, PlayerId = sender.Session.PID }, sender);
                 }
                 else
                 {
+                    Log($"{message.DisplayName} trying to rejoin");
                     if (!Sessions.TryGetValue(message.Token, out Session session))
                     {
                         SendMessage(new MWDisconnectMessage(), sender);
@@ -310,6 +395,8 @@ namespace MultiWorldServer
 
                     sender.Session = session;
                     sender.FullyConnected = true;
+                    Log($"{message.DisplayName} has rejoined with token {sender.Session.Token}");
+                    SendMessage(new MWJoinConfirmMessage { Token = sender.Session.Token, DisplayName = sender.Session.Name, PlayerId = sender.Session.PID }, sender);
                 }
 
                 IEnumerable<Client> connected =
@@ -332,7 +419,7 @@ namespace MultiWorldServer
 
         private void HandleNotify(Client sender, MWNotifyMessage message)
         {
-            Console.WriteLine($"[{sender.Session?.Name}]: {message.Message}");
+            Log($"[{sender.Session?.Name}]: {message.Message}");
         }
 
 
@@ -368,7 +455,7 @@ namespace MultiWorldServer
                 {
                     if (c.Session.PID == player)
                     {
-                        Console.WriteLine($"Sending item '{Item}' to '{c.Session.Name}', from '{From}'");
+                        Log($"Sending item '{Item}' to '{c.Session.Name}', from '{From}'");
 
                         c.Session.QueueConfirmableMessage(new MWItemReceiveMessage { From = From, Item = Item });
                         return;
