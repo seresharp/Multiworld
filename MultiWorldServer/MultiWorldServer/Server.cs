@@ -13,7 +13,7 @@ namespace MultiWorldServer
 {
     class Server
     {
-        const int PingInterval = 10000;
+        const int PingInterval = 10000; //In milliseconds
 
         private ulong nextUID = 1;
         private ushort nextPID = 0;
@@ -81,15 +81,18 @@ namespace MultiWorldServer
         {
             lock (_clientLock)
             {
-                foreach (Client client in Clients.Values)
+                var ClientList = Clients.Values.ToList();
+                for (int i = ClientList.Count - 1; i>= 0; i--)
                 {
+                    var client = ClientList[i];
                     if(client.Session!= null)
                     {
                         lock (client.Session.MessagesToConfirm)
                         {
                             var now = DateTime.Now;
-                            foreach (ResendEntry entry in client.Session.MessagesToConfirm)
+                            for (int j = client.Session.MessagesToConfirm.Count - 1; j >= 0; j--)
                             {
+                                var entry = client.Session.MessagesToConfirm[j];
                                 if (now - entry.LastSent > TimeSpan.FromSeconds(5))
                                 {
                                     var msg = entry.Message;
@@ -179,18 +182,19 @@ namespace MultiWorldServer
             client.TcpClient.SendTimeout = 2000;
             client.lastPing = DateTime.Now;
 
-            StartReadThread(client);
-
             lock (_clientLock)
             {
                 Unidentified.Add(client);
             }
+
+            StartReadThread(client);
         }
 
         private bool SendMessage(MWMessage message, Client client)
         {
             if (client?.TcpClient == null || !client.TcpClient.Connected)
             {
+                //Log("Returning early due to client not connected");
                 return false;
             }
 
@@ -318,6 +322,7 @@ namespace MultiWorldServer
 
         private void HandleConnect(Client sender, MWConnectMessage message)
         {
+            //Log(string.Format("Seeing connection with UID={0}", message.SenderUid));
             lock (_clientLock)
             {
                 if (Unidentified.Contains(sender))
@@ -325,7 +330,9 @@ namespace MultiWorldServer
                     if (message.SenderUid == 0)
                     {
                         sender.UID = nextUID++;
+                        //Log(string.Format("Assigned UID={0}", sender.UID));
                         SendMessage(new MWConnectMessage {SenderUid = sender.UID}, sender);
+                        //Log("Connect sent!");
                         Clients.Add(sender.UID, sender);
                         Unidentified.Remove(sender);
                     }
@@ -359,7 +366,7 @@ namespace MultiWorldServer
 
                 if (string.IsNullOrEmpty(message.Token))
                 {
-                    if (Clients.Count(client => client.Value.FullyConnected) >= _settings.Players)
+                    if (nextPID > _settings.Players)
                     {
                         sender.TcpClient.Close();
                         return;
@@ -378,6 +385,7 @@ namespace MultiWorldServer
                 }
                 else
                 {
+                    Log($"{message.DisplayName} trying to rejoin");
                     if (!Sessions.TryGetValue(message.Token, out Session session))
                     {
                         SendMessage(new MWDisconnectMessage(), sender);
@@ -387,6 +395,8 @@ namespace MultiWorldServer
 
                     sender.Session = session;
                     sender.FullyConnected = true;
+                    Log($"{message.DisplayName} has rejoined with token {sender.Session.Token}");
+                    SendMessage(new MWJoinConfirmMessage { Token = sender.Session.Token, DisplayName = sender.Session.Name, PlayerId = sender.Session.PID }, sender);
                 }
 
                 IEnumerable<Client> connected =
