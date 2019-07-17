@@ -13,6 +13,8 @@ namespace MultiWorldServer
 {
     class Server
     {
+        const int PingInterval = 10000;
+
         private ulong nextUID = 1;
         private ushort nextPID = 0;
         private readonly MWMessagePacker Packer = new MWMessagePacker(new BinaryMWMessageEncoder());
@@ -24,7 +26,6 @@ namespace MultiWorldServer
         private readonly Dictionary<ulong, Client> Clients = new Dictionary<ulong, Client>();
         private readonly Dictionary<string, Session> Sessions = new Dictionary<string, Session>();
         private TcpListener _server;
-        private readonly Thread _readThread;
         private readonly Timer ResendTimer;
 
         private readonly ServerSettings _settings;
@@ -44,7 +45,7 @@ namespace MultiWorldServer
             //_readThread = new Thread(ReadWorker);
             //_readThread.Start();
             _server.BeginAcceptTcpClient(AcceptClient, _server);
-            PingTimer = new Timer(DoPing, Clients, 1000, 10000);
+            PingTimer = new Timer(DoPing, Clients, 1000, PingInterval);
             ResendTimer = new Timer(DoResends, Clients, 500, 1000);
             Running = true;
             Console.WriteLine("Server started!");
@@ -54,11 +55,16 @@ namespace MultiWorldServer
         {
             lock (_clientLock)
             {
+                var Now = DateTime.Now;
                 List<Client> clientList = Clients.Values.ToList();
                 for (int i = clientList.Count - 1; i >= 0; i--)
                 {
                     Client client = clientList[i];
-                    SendMessage(new MWPingMessage(), client);
+                    //If a client has missed 3 pings we disconnect them
+                    if (Now - client.lastPing > TimeSpan.FromMilliseconds(PingInterval * 3.5))
+                        DisconnectClient(client);
+                    else
+                        SendMessage(new MWPingMessage(), client);
                 }
             }
         }
@@ -290,6 +296,7 @@ namespace MultiWorldServer
                     HandleNotify(sender, (MWNotifyMessage)message);
                     break;
                 case MWMessageType.PingMessage:
+                    HandlePing(sender, (MWPingMessage)message);
                     break;
                 case MWMessageType.ItemConfigurationRequestMessage:
                     HandleItemConfigurationRequest(sender, (MWItemConfigurationRequestMessage)message);
@@ -325,6 +332,11 @@ namespace MultiWorldServer
         private void HandleDisconnect(Client sender, MWDisconnectMessage message)
         {
             DisconnectClient(sender);
+        }
+
+        private void HandlePing(Client sender, MWPingMessage message)
+        {
+            sender.lastPing = DateTime.Now;
         }
 
         private void HandleJoin(Client sender, MWJoinMessage message)
