@@ -101,7 +101,12 @@ namespace MultiWorldMod
 
         public override string GetVersion()
         {
-            return "0.0.3";
+            return "0.0.4";
+        }
+
+        public ClientConnection.ConnectionStatus GetConnectionStatus()
+        {
+            return connection.GetStatus();
         }
 
         public void Connect(bool useOldToken)

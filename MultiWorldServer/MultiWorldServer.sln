@@ -8,6 +8,9 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MultiWorldProtocol", "..\MultiWorldProtocol\MultiWorldProtocol.csproj", "{A2167653-9467-43ED-B29F-80851B5219F3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MultiWorldMod", "..\MultiWorldMod\MultiWorldMod\MultiWorldMod.csproj", "{269229ED-D6D1-4023-8F46-0583FA95182B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A2167653-9467-43ED-B29F-80851B5219F3} = {A2167653-9467-43ED-B29F-80851B5219F3}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

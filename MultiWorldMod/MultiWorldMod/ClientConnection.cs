@@ -62,6 +62,8 @@ namespace MultiWorldMod
                 return;
             }
 
+            MultiWorldMod.Instance.Log("Attempting to connect to server");
+
             State.Uid = 0;
             State.LastPing = DateTime.Now;
 
@@ -89,6 +91,7 @@ namespace MultiWorldMod
 
         private void Disconnect()
         {
+            MultiWorldMod.Instance.Log("Disconnecting from server");
             PingTimer?.Dispose();
 
             try
@@ -104,6 +107,7 @@ namespace MultiWorldMod
             finally
             {
                 State.Connected = false;
+                State.Joined = false;
                 _client = null;
             }
         }
@@ -143,7 +147,18 @@ namespace MultiWorldMod
         private void DoPing(object state)
         {
             if (_client == null || !_client.Connected)
+            {
+                if (State.Connected)
+                {
+                    State.Connected = false;
+                    State.Joined = false;
+
+                    MultiWorldMod.Instance.Log("Disconnected from server");
+                }
+
                 Reconnect();
+            }
+
             if (State.Connected)
             {
                 if (DateTime.Now - State.LastPing > TimeSpan.FromMilliseconds(PING_INTERVAL * 3.5))
@@ -320,6 +335,7 @@ namespace MultiWorldMod
         private void HandleDisconnectMessage(MWDisconnectMessage message)
         {
             State.Connected = false;
+            State.Joined = false;
         }
 
         private void HandleNotify(MWNotifyMessage message)
@@ -424,6 +440,28 @@ namespace MultiWorldMod
         public string GetUserName()
         {
             return State.UserName;
+        }
+
+        public ConnectionStatus GetStatus()
+        {
+            if (!State.Connected)
+            {
+                return ConnectionStatus.NotConnected;
+            }
+
+            if (!State.Joined)
+            {
+                return ConnectionStatus.TryingToConnect;
+            }
+
+            return ConnectionStatus.Connected;
+        }
+
+        public enum ConnectionStatus
+        {
+            NotConnected,
+            TryingToConnect,
+            Connected
         }
     }
 }
