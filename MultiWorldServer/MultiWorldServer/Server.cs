@@ -203,7 +203,7 @@ namespace MultiWorldServer
                 lock (client.TcpClient)
                 {
                     NetworkStream stream = client.TcpClient.GetStream();
-                    stream.WriteTimeout = 2;
+                    stream.WriteTimeout = 2000;
                     stream.Write(bytes, 0, bytes.Length);
                 }
                 return true;
