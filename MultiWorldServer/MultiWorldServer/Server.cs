@@ -182,18 +182,18 @@ namespace MultiWorldServer
 
             try
             {
-                //Monitor.Enter(client.SendLock);
+                
                 byte[] bytes = Packer.Pack(message).Buffer;
-
-                NetworkStream stream = client.TcpClient.GetStream();
-                stream.Write(bytes, 0, bytes.Length);
-                //stream.BeginWrite(bytes, 0, bytes.Length, WriteToClient, client);
+                lock (client.TcpClient)
+                {
+                    NetworkStream stream = client.TcpClient.GetStream();
+                    stream.Write(bytes, 0, bytes.Length);
+                }
                 return true;
             }
             catch (Exception e)
             {
                 Console.WriteLine($"Failed to send message to '{client.Session?.Name}':\n{e}\nDisconnecting");
-                //Monitor.Exit(client.SendLock);
                 DisconnectClient(client);
                 return false;
             }
