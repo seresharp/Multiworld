@@ -10,7 +10,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MultiWorldMod", "..\MultiWorldMod\MultiWorldMod\MultiWorldMod.csproj", "{269229ED-D6D1-4023-8F46-0583FA95182B}"
 	ProjectSection(ProjectDependencies) = postProject
 		{A2167653-9467-43ED-B29F-80851B5219F3} = {A2167653-9467-43ED-B29F-80851B5219F3}
+		{086F246B-8354-41D3-9A6B-E2897B7192C0} = {086F246B-8354-41D3-9A6B-E2897B7192C0}
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RandomizerLib", "..\HollowKnight.RandomizerMod\RandomizerLib\RandomizerLib.csproj", "{086F246B-8354-41D3-9A6B-E2897B7192C0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -30,6 +33,10 @@ Global
 		{269229ED-D6D1-4023-8F46-0583FA95182B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{269229ED-D6D1-4023-8F46-0583FA95182B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{269229ED-D6D1-4023-8F46-0583FA95182B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{086F246B-8354-41D3-9A6B-E2897B7192C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{086F246B-8354-41D3-9A6B-E2897B7192C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{086F246B-8354-41D3-9A6B-E2897B7192C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{086F246B-8354-41D3-9A6B-E2897B7192C0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -7,7 +7,7 @@ using HutongGames.PlayMaker;
 using HutongGames.PlayMaker.Actions;
 using JetBrains.Annotations;
 using Modding;
-using RandomizerMod;
+using RandomizerLib;
 using SeanprCore;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -21,11 +21,7 @@ namespace MultiWorldMod
     {
         private static readonly Sprite BlackPixel = CanvasUtil.NullSprite(new byte[] { 0x00, 0x00, 0x00, 0x55 });
 
-        private static GameObject _shinyItem;
         private static ClientConnection connection;
-
-        private static Dictionary<string, Dictionary<string, string>> _languageOverrides = new Dictionary<string, Dictionary<string, string>>();
-        private static Dictionary<string, Sprite> _sprites;
 
         private static Dictionary<string, string> _secondaryBools = new Dictionary<string, string>
         {
@@ -39,6 +35,15 @@ namespace MultiWorldMod
         };
 
         private static (string, ReqDef)[] _itemCache;
+
+        private static (string, ReqDef)[] ItemCache
+        {
+            get
+            {
+                return _itemCache ?? (_itemCache = LogicManager.ItemNames
+                           .Select(name => (name, LogicManager.GetItemDef(name))).ToArray());
+            }
+        }
 
         public static MultiWorldMod Instance { get; private set; }
 
@@ -57,30 +62,18 @@ namespace MultiWorldMod
             set => Config = value is GlobalSettings globalSettings ? globalSettings : Config;
         }
 
-        public override void Initialize(Dictionary<string, Dictionary<string, GameObject>> preloaded)
+        public override void Initialize()
         {
             Instance = this;
-
-            // Load images
-            _sprites = ResourceHelper.GetSprites("MultiWorldMod.Resources.");
-
-            // Create shiny object cache
-            _shinyItem = Object.Instantiate(preloaded[SceneNames.Tutorial_01]["_Props/Chest/Item/Shiny Item (1)"]);
-            _shinyItem.SetActive(false);
-            Object.DontDestroyOnLoad(_shinyItem);
-
-            // Parse logic xml to obtain location data
-            LogicManager.ParseXML(GetType().Assembly.GetManifestResourceStream("MultiWorldMod.Resources.items.xml"));
-            _itemCache = LogicManager.ItemNames.Select(name => (name, LogicManager.GetItemDef(name))).ToArray();
 
             ModHooks.Instance.SetPlayerBoolHook += SetBoolOverride;
             ModHooks.Instance.GetPlayerBoolHook += GetBoolOverride;
             ModHooks.Instance.NewGameHook += SetNewGameVars;
-            ModHooks.Instance.LanguageGetHook += LanguageOverride;
             On.PlayMakerFSM.OnEnable += ModifyFSM;
             UnityEngine.SceneManagement.SceneManager.activeSceneChanged += NewScene;
 
             MiscSceneChanges.Hook();
+            BenchHandler.Hook();
 
             // Config doesn't generate values unless they are assigned
             Config.IP = Config.IP;
@@ -121,36 +114,16 @@ namespace MultiWorldMod
             }
         }
 
-        private void AddLanguageOverride(string key, string sheetTitle, string lang)
-        {
-            if (!_languageOverrides.TryGetValue(sheetTitle, out Dictionary<string, string> sheet))
-            {
-                sheet = new Dictionary<string, string>();
-                _languageOverrides[sheetTitle] = sheet;
-            }
-
-            sheet[key] = lang;
-        }
-
-        private string LanguageOverride(string key, string sheetTitle)
-        {
-            if (_languageOverrides.TryGetValue(sheetTitle, out Dictionary<string, string> sheet) &&
-                sheet.TryGetValue(key, out string lang))
-            {
-                return lang;
-            }
-
-            return Language.Language.GetInternal(key, sheetTitle);
-        }
-
         private void NewScene(Scene from, Scene to)
         {
-            foreach ((string loc, ReqDef def) in _itemCache)
+            foreach ((string loc, ReqDef def) in ItemCache)
             {
                 if (def.sceneName != to.name)
                 {
                     continue;
                 }
+
+                GameObject shiny;
 
                 if (def.replace)
                 {
@@ -160,19 +133,18 @@ namespace MultiWorldMod
                         continue;
                     }
 
-                    ReplaceWithShiny(obj, loc);
+                    shiny = ShinyItemHelper.ReplaceObjectWithShiny(obj, "Randomizer Shiny");
                 }
                 else if (def.newShiny)
                 {
-                    GameObject shiny = Object.Instantiate(_shinyItem);
-                    shiny.name = "Randomizer Shiny";
-                    shiny.transform.position = new Vector2(def.x, def.y);
-                    RemoveFling(shiny);
-
-                    shiny.SetActive(true);
-
-                    ModifyShiny(shiny.LocateFSM("Shiny Control"), loc);
+                    shiny = ShinyItemHelper.CreateNewShiny(def.x, def.y, "Randomizer Shiny");
                 }
+                else
+                {
+                    continue;
+                }
+
+                ModifyShinyItem(shiny, loc);
             }
 
             // Shops
@@ -203,14 +175,14 @@ namespace MultiWorldMod
 
                     if (itemDef.type == ItemType.Geo)
                     {
-                        AddLanguageOverride(item.Item, "UI", itemDef.geo + " Geo");
+                        LanguageStringManager.SetString("UI", item.Item, itemDef.geo + " Geo");
                         itemDef.nameKey = item.Item;
                     }
 
                     if (item.PlayerId != connection.GetPID())
                     {
                         string newNameKey = itemDef.nameKey + "_" + item.PlayerId;
-                        AddLanguageOverride(newNameKey, "UI",
+                        LanguageStringManager.SetString("UI", newNameKey,
                             Language.Language.Get(itemDef.nameKey, "UI") + " for player " + item.PlayerId);
 
                         itemDef.nameKey = newNameKey;
@@ -237,7 +209,7 @@ namespace MultiWorldMod
 
                     // Apply the sprite for the UI
                     stats.transform.Find("Item Sprite").gameObject.GetComponent<SpriteRenderer>().sprite =
-                        _sprites[itemDef.shopSpriteKey ?? "UI.Shop.Geo"];
+                        RandomizerLib.RandomizerLib.GetSprite(itemDef.shopSpriteKey ?? "UI.Shop.Geo");
 
                     newStock.Add(newItemObj);
                 }
@@ -274,7 +246,8 @@ namespace MultiWorldMod
                 }
             }
 
-            MiscSceneChanges.SceneChanged(to);
+            // Hard coded randomizer mode/no claw for now TODO: Not hard coded
+            MiscSceneChanges.SceneChanged(to, this, true, false);
         }
 
         private void SetNewGameVars()
@@ -295,14 +268,29 @@ namespace MultiWorldMod
             // Dream nail fix
             if (self.gameObject.scene.name == SceneNames.RestingGrounds_04)
             {
-                ChangeBoolTest("Binding Shield Activate", "FSM", "Check", "MultiWorldMod.Dream_Nail");
-                ChangeBoolTest("Dreamer Plaque Inspect", "Conversation Control", "End", "MultiWorldMod.Dream_Nail");
-                ChangeBoolTest("Dreamer Scene 2", "Control", "Init", "MultiWorldMod.Dream_Nail");
-                ChangeBoolTest("PreDreamnail", "FSM", "Check", "MultiWorldMod.Dream_Nail");
-                ChangeBoolTest("PostDreamnail", "FSM", "Check", "MultiWorldMod.Dream_Nail");
+                if (self.gameObject.name == "Binding Shield Activate" && self.FsmName == "FSM")
+                {
+                    ChangeBoolTest(self, "Check", "MultiWorldMod.Dream_Nail");
+                }
+                else if (self.gameObject.name == "Dreamer Plaque Inspect" && self.FsmName == "Conversation Control")
+                {
+                    ChangeBoolTest(self, "End", "MultiWorldMod.Dream_Nail");
+                }
+                else if (self.gameObject.name == "Dreamer Scene 2" && self.FsmName == "Control")
+                {
+                    ChangeBoolTest(self, "Init", "MultiWorldMod.Dream_Nail");
+                }
+                else if (self.gameObject.name == "PreDreamnail" && self.FsmName == "FSM")
+                {
+                    ChangeBoolTest(self, "Check", "MultiWorldMod.Dream_Nail");
+                }
+                else if (self.gameObject.name == "PostDreamnail" && self.FsmName == "FSM")
+                {
+                    ChangeBoolTest(self, "Check", "MultiWorldMod.Dream_Nail");
+                }
             }
 
-            foreach ((string loc, ReqDef def) in _itemCache)
+            foreach ((string loc, ReqDef def) in ItemCache)
             {
                 if (!(self.gameObject.scene.name == def.sceneName &&
                       (self.gameObject.name == def.objectName || self.gameObject.name == def.altObjectName) &&
@@ -311,37 +299,53 @@ namespace MultiWorldMod
                     continue;
                 }
 
-                switch (def.type)
+                ModifyShinyItem(self.gameObject, loc);
+            }
+        }
+
+        private void ModifyShinyItem(GameObject shiny, string loc)
+        {
+            if (!connection.GetItemAtLocation(loc, out PlayerItem item) || shiny == null || loc == null)
+            {
+                return;
+            }
+
+            // TODO: Handle chests in a better way than replacing them
+            if (shiny.LocateFSM("Shiny Control") == null)
+            {
+                shiny = ShinyItemHelper.ReplaceObjectWithShiny(shiny, "Randomizer Shiny");
+            }
+
+            if (item.PlayerId != connection.GetPID())
+            {
+                ShinyItemHelper.ChangeIntoSimple(shiny, this, "MultiWorldMod." + loc);
+            }
+            else
+            {
+                ReqDef itemDef = LogicManager.GetItemDef(item.Item);
+                switch (itemDef.type)
                 {
                     case ItemType.Big:
+                    case ItemType.Spell:
+                        // TODO: Parse item into BigItemDef[]
+                        ShinyItemHelper.ChangeIntoSimple(shiny, this, "MultiWorldMod." + loc);
+                        break;
                     case ItemType.Charm:
-                        ModifyShiny(self, loc);
+                        ShinyItemHelper.ChangeIntoCharm(shiny, this, "MultiWorldMod." + loc, itemDef.boolName);
                         break;
                     case ItemType.Geo:
-                        ReplaceWithShiny(self.gameObject, loc);
+                        ShinyItemHelper.ChangeIntoGeo(shiny, this, "MultiWorldMod." + loc, itemDef.geo);
                         break;
-                    case ItemType.Spell:
                     case ItemType.Shop:
-                        Log("Cannot handle location " + loc);
+                    default:
+                        ShinyItemHelper.ChangeIntoSimple(shiny, this, "MultiWorldMod." + loc);
                         break;
                 }
             }
         }
 
-        private void ChangeBoolTest(string objectName, string fsmName, string stateName, string boolName)
+        private void ChangeBoolTest(PlayMakerFSM fsm, string stateName, string boolName)
         {
-            GameObject obj = GameObject.Find(objectName);
-            if (obj == null)
-            {
-                return;
-            }
-
-            PlayMakerFSM fsm = obj.LocateFSM(fsmName);
-            if (fsm == null)
-            {
-                return;
-            }
-
             PlayerDataBoolTest test = fsm.GetState(stateName)?.GetActionOfType<PlayerDataBoolTest>();
             if (test == null)
             {
@@ -349,66 +353,6 @@ namespace MultiWorldMod
             }
 
             test.boolName = boolName;
-        }
-
-        private void RemoveFling(GameObject obj)
-        {
-            PlayMakerFSM fsm = obj.LocateFSM("Shiny Control");
-
-            FsmState fling = fsm.GetState("Fling?");
-            fling.ClearTransitions();
-            fling.AddTransition("FINISHED", "Fling R");
-            FlingObject flingObj = fsm.GetState("Fling R").GetActionsOfType<FlingObject>()[0];
-            flingObj.angleMin = flingObj.angleMax = 270;
-
-            // For some reason not setting speed manually messes with the object position
-            flingObj.speedMin = flingObj.speedMax = 0.1f;
-        }
-
-        private void ReplaceWithShiny(GameObject obj, string loc)
-        {
-            Vector3 pos = obj.transform.position;
-            Transform parent = obj.transform.parent;
-            Object.DestroyImmediate(obj.gameObject);
-
-            GameObject shiny = Object.Instantiate(_shinyItem, parent, true);
-            shiny.name = "Randomizer Shiny";
-            shiny.transform.position = pos;
-            RemoveFling(shiny);
-
-            shiny.SetActive(loc != "Desolate_Dive");
-
-            ModifyShiny(shiny.LocateFSM("Shiny Control"), loc);
-        }
-
-        private void ModifyShiny(PlayMakerFSM shiny, string loc)
-        {
-            FsmState pdBool = shiny.GetState("PD Bool?");
-            FsmState charm = shiny.GetState("Charm?");
-            FsmState bigGetFlash = shiny.GetState("Big Get Flash");
-
-            // Remove actions that stop shiny from spawning
-            pdBool.RemoveActionsOfType<StringCompare>();
-
-            // Change pd bool test to our new bool
-            PlayerDataBoolTest boolTest = pdBool.GetActionOfType<PlayerDataBoolTest>();
-            boolTest.boolName = "MultiWorldMod." + loc;
-
-            // Force the FSM to show the big item flash
-            charm.ClearTransitions();
-            charm.AddTransition("FINISHED", "Big Get Flash");
-
-            // Tell the client about the item via SetBool
-            bigGetFlash.AddAction(new SetPlayerDataBool
-            {
-                boolName = "MultiWorldMod." + loc,
-                value = true
-            });
-
-            // Exit the fsm after giving the item
-            bigGetFlash.ClearTransitions();
-            bigGetFlash.AddTransition("FINISHED", "Hero Up");
-            bigGetFlash.AddTransition("HERO DAMAGED", "Finish");
         }
 
         public override List<(string, string)> GetPreloadNames()
@@ -433,7 +377,12 @@ namespace MultiWorldMod
         private IEnumerator GiveItem(string from, string item)
         {
             // Handle additive items
-            if (LogicManager.TryGetAdditiveSet(item, out string[] additiveSet))
+            Dictionary<string, string[]> additiveItems =
+                LogicManager.AdditiveItemNames.ToDictionary(name => name, LogicManager.GetAdditiveItems);
+
+            string[] additiveSet = additiveItems.FirstOrDefault(pair => pair.Value.Contains(item)).Value;
+
+            if (additiveSet != null)
             {
                 foreach (ReqDef itemDef in additiveSet.Select(LogicManager.GetItemDef))
                 {
@@ -476,9 +425,9 @@ namespace MultiWorldMod
                     old = Ref.Hero.transitionState;
                     yield return new WaitForEndOfFrame();
                 }
-            }
 
-            yield return ShowPopup($"Received {item} from {from}");
+                yield return ShowPopup($"Received {item} from {from}");
+            }
         }
 
         private IEnumerator ShowPopup(string text)
